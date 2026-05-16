@@ -1,0 +1,357 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Caliche Records</title>
+<meta name="description" content="Caliche Records. Independent. Uncompromising. American roots music built outside the machine.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,700;0,900;1,400;1,700&family=EB+Garamond:ital,wght@0,400;0,500;1,400&family=Cormorant+Garamond:ital,wght@0,300;0,400;1,300;1,400&display=swap" rel="stylesheet">
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  :root { --dark:#0e0b08;--darker:#080604;--brown:#8B4513;--gold:#C8A882;--gold-dim:#8a6a4a;--dust:#F5F0EB;--gray:#6a6050;--mid:#3a2e22; }
+  html { scroll-behavior: smooth; }
+  body { background:var(--darker);color:var(--dust);font-family:'EB Garamond',Georgia,serif;font-size:18px;line-height:1.7;overflow-x:hidden; }
+  body::before { content:'';position:fixed;inset:0;background-image:url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)' opacity='0.04'/%3E%3C/svg%3E");pointer-events:none;z-index:1000;opacity:0.4; }
+
+  /* NAV */
+  nav { position:fixed;top:0;left:0;right:0;z-index:200;padding:20px 48px;display:flex;justify-content:space-between;align-items:center;transition:background 0.5s, padding 0.4s, box-shadow 0.4s; }
+  nav.scrolled { background:rgba(8,6,4,0.96);padding:13px 48px;box-shadow:0 1px 0 rgba(58,46,34,0.4); }
+  .nav-logo { font-family:'Playfair Display',serif;font-size:14px;font-weight:700;letter-spacing:0.3em;text-transform:uppercase;color:var(--gold); }
+  .nav-links { display:flex;gap:36px;list-style:none; }
+  .nav-links a { font-family:'Cormorant Garamond',serif;font-size:13px;letter-spacing:0.2em;text-transform:uppercase;color:var(--gold-dim);text-decoration:none;transition:color 0.3s;position:relative; }
+  .nav-links a::after { content:'';position:absolute;bottom:-3px;left:0;right:0;height:1px;background:var(--brown);transform:scaleX(0);transform-origin:left;transition:transform 0.3s; }
+  .nav-links a:hover { color:var(--gold); }
+  .nav-links a:hover::after { transform:scaleX(1); }
+  .hamburger { display:none;flex-direction:column;gap:5px;cursor:pointer;padding:4px;background:none;border:none; }
+  .hamburger span { display:block;width:24px;height:1px;background:var(--gold);transition:all 0.3s; }
+  .hamburger.open span:nth-child(1) { transform:translateY(6px) rotate(45deg); }
+  .hamburger.open span:nth-child(2) { opacity:0; }
+  .hamburger.open span:nth-child(3) { transform:translateY(-6px) rotate(-45deg); }
+  .mobile-menu { display:none;position:fixed;inset:0;background:rgba(8,6,4,0.98);z-index:150;flex-direction:column;justify-content:center;align-items:center;gap:48px; }
+  .mobile-menu.open { display:flex; }
+  .mobile-menu a { font-family:'Playfair Display',serif;font-size:36px;font-weight:700;color:var(--dust);text-decoration:none;opacity:0;transform:translateY(24px);transition:color 0.3s; }
+  .mobile-menu.open a:nth-child(1) { animation:menuIn 0.5s 0.1s cubic-bezier(0.16,1,0.3,1) forwards; }
+  .mobile-menu.open a:nth-child(2) { animation:menuIn 0.5s 0.2s cubic-bezier(0.16,1,0.3,1) forwards; }
+  .mobile-menu.open a:nth-child(3) { animation:menuIn 0.5s 0.3s cubic-bezier(0.16,1,0.3,1) forwards; }
+  .mobile-menu a:hover { color:var(--gold); }
+
+  /* HERO */
+  .hero { min-height:100vh;display:flex;flex-direction:column;justify-content:center;align-items:center;text-align:center;padding:140px 32px 100px;position:relative;overflow:hidden; }
+  .hero-bg { position:absolute;inset:-20%;background:radial-gradient(ellipse at 50% 60%, rgba(139,69,19,0.15) 0%, transparent 60%), var(--darker);will-change:transform; }
+  .hero::after { content:'';position:absolute;bottom:0;left:0;right:0;height:220px;background:linear-gradient(to bottom,transparent,var(--darker));pointer-events:none;z-index:1; }
+  .hero > *:not(.hero-bg) { position:relative;z-index:2; }
+  .label-eyebrow { font-family:'Cormorant Garamond',serif;font-size:12px;letter-spacing:0.6em;text-transform:uppercase;color:var(--brown);margin-bottom:28px;opacity:0;animation:fadeUp 1.2s 0.3s cubic-bezier(0.16,1,0.3,1) forwards; }
+  .hero-title { font-family:'Playfair Display',serif;font-size:clamp(52px,12vw,120px);font-weight:900;line-height:0.9;letter-spacing:-0.02em;color:var(--dust);margin-bottom:12px;opacity:0;animation:fadeUp 1.2s 0.5s cubic-bezier(0.16,1,0.3,1) forwards; }
+  .hero-subtitle { font-family:'Playfair Display',serif;font-size:clamp(16px,4vw,30px);font-style:italic;color:var(--gold);letter-spacing:0.1em;margin-bottom:40px;opacity:0;animation:fadeUp 1.2s 0.7s cubic-bezier(0.16,1,0.3,1) forwards; }
+  .hero-divider { width:0;height:1px;background:var(--brown);margin:0 auto 40px;animation:expandLine 1s 1s cubic-bezier(0.16,1,0.3,1) forwards; }
+  .hero-tagline { font-family:'Cormorant Garamond',serif;font-size:clamp(14px,3vw,16px);font-style:italic;color:var(--gray);letter-spacing:0.08em;opacity:0;animation:fadeUp 1.2s 1.1s cubic-bezier(0.16,1,0.3,1) forwards;max-width:400px; }
+  .hero-caret { position:absolute;bottom:36px;left:50%;transform:translateX(-50%);z-index:2;opacity:0;animation:fadeUp 1s 1.8s forwards;display:flex;flex-direction:column;align-items:center;gap:8px; }
+  .hero-caret span { font-family:'Cormorant Garamond',serif;font-size:11px;letter-spacing:0.4em;text-transform:uppercase;color:var(--gray); }
+  .caret-line { width:1px;height:40px;background:linear-gradient(to bottom,var(--brown),transparent);animation:caretPulse 2s 2s ease-in-out infinite; }
+
+  /* NEXT RELEASE BAND */
+  .next-release { background:rgba(58,46,34,0.3);border-top:1px solid var(--mid);border-bottom:1px solid var(--mid);padding:40px 48px;text-align:center; }
+  .next-release-label { font-family:'Cormorant Garamond',serif;font-size:11px;letter-spacing:0.5em;text-transform:uppercase;color:var(--brown);margin-bottom:24px;display:block; }
+  .next-release-title { font-family:'Playfair Display',serif;font-size:clamp(13px,2vw,16px);font-weight:700;letter-spacing:0.2em;text-transform:uppercase;color:var(--gold-dim);margin-bottom:28px; }
+  .cd-grid { display:flex;align-items:center;justify-content:center;gap:24px; }
+  .cd-unit { display:flex;flex-direction:column;align-items:center;gap:6px;min-width:60px; }
+  .cd-num { font-family:'Playfair Display',serif;font-size:clamp(32px,5vw,56px);font-weight:900;color:var(--gold);line-height:1;transition:color 0.3s; }
+  .cd-label { font-family:'Cormorant Garamond',serif;font-size:10px;letter-spacing:0.35em;text-transform:uppercase;color:var(--gray); }
+  .cd-sep { font-family:'Playfair Display',serif;font-size:32px;color:var(--mid);line-height:1;margin-bottom:16px; }
+
+  /* SHARED */
+  .full-rule { width:100%;height:1px;background:linear-gradient(to right,transparent,var(--mid),transparent); }
+  .section-label { font-family:'Cormorant Garamond',serif;font-size:12px;letter-spacing:0.5em;text-transform:uppercase;color:var(--brown);margin-bottom:16px;display:block; }
+  .section-title { font-family:'Playfair Display',serif;font-size:clamp(32px,6vw,64px);font-weight:700;line-height:1.05;color:var(--dust);margin-bottom:32px; }
+  .section-rule { width:36px;height:2px;background:var(--brown);margin-bottom:40px; }
+
+  /* ABOUT */
+  .about-wrap { max-width:1200px;margin:0 auto;padding:120px 48px;display:grid;grid-template-columns:1fr 1fr;gap:80px;align-items:start; }
+  .about-text { font-size:18px;color:#b0a090;line-height:1.9;margin-bottom:20px; }
+  .about-text strong { color:var(--gold);font-weight:500; }
+  .about-right { padding-top:60px; }
+  .values-list { list-style:none;border-top:1px solid var(--mid); }
+  .values-list li { padding:18px 0;border-bottom:1px solid var(--mid);font-family:'Cormorant Garamond',serif;font-size:17px;color:var(--gold-dim);letter-spacing:0.04em;display:flex;gap:16px;align-items:baseline;opacity:0;transform:translateX(-16px);transition:color 0.3s; }
+  .values-list li::before { content:'—';color:var(--brown);flex-shrink:0; }
+  .values-list li:hover { color:var(--gold); }
+
+  /* ARTISTS */
+  .artists-wrap { background:linear-gradient(to bottom,var(--darker),#100c07,var(--darker)); }
+  .artists-inner { max-width:1200px;margin:0 auto;padding:120px 48px; }
+  .mystery-card { border:1px solid var(--mid);background:rgba(18,12,6,0.9);overflow:hidden;margin-top:48px;position:relative;min-height:400px;display:flex;align-items:center;justify-content:center;text-align:center;cursor:default; }
+  .mystery-card::before { content:'';position:absolute;inset:0;background:radial-gradient(ellipse at 50% 40%, rgba(139,69,19,0.1) 0%, transparent 65%);transition:opacity 0.6s; }
+  .mystery-card:hover::before { opacity:1.5; }
+  .mystery-bg-text { position:absolute;font-family:'Playfair Display',serif;font-size:clamp(120px,25vw,260px);font-weight:900;color:rgba(58,46,34,0.18);line-height:1;pointer-events:none;letter-spacing:-0.05em;user-select:none;transition:color 0.6s; }
+  .mystery-card:hover .mystery-bg-text { color:rgba(139,69,19,0.12); }
+  .mystery-inner { position:relative;z-index:2;padding:80px 48px; }
+  .mystery-eyebrow { font-family:'Cormorant Garamond',serif;font-size:11px;letter-spacing:0.6em;text-transform:uppercase;color:var(--brown);margin-bottom:24px; }
+  .mystery-name { font-family:'Playfair Display',serif;font-size:clamp(40px,8vw,90px);font-weight:900;color:var(--dust);line-height:0.95;margin-bottom:24px; }
+  .mystery-name em { font-style:italic;color:var(--gold);display:block; }
+  .mystery-rule { width:32px;height:1px;background:var(--brown);margin:0 auto 28px;transition:width 0.6s; }
+  .mystery-card:hover .mystery-rule { width:80px; }
+  .mystery-tagline { font-family:'Cormorant Garamond',serif;font-size:clamp(16px,2.5vw,22px);font-style:italic;color:var(--gray);letter-spacing:0.06em;margin-bottom:40px;max-width:480px;margin-left:auto;margin-right:auto;line-height:1.8; }
+  .mystery-coming { display:inline-flex;align-items:center;gap:12px;border:1px solid rgba(139,69,19,0.4);padding:14px 28px;font-family:'Cormorant Garamond',serif;font-size:12px;letter-spacing:0.4em;text-transform:uppercase;color:var(--gold-dim);margin-bottom:40px;transition:border-color 0.3s,color 0.3s; }
+  .mystery-card:hover .mystery-coming { border-color:rgba(139,69,19,0.7);color:var(--gold); }
+  .pulse-dot { width:7px;height:7px;border-radius:50%;background:var(--brown);animation:pulseDot 2s ease-in-out infinite; }
+
+  /* CONTACT */
+  .contact-wrap { background:var(--mid); }
+  .contact-inner { max-width:1200px;margin:0 auto;padding:120px 48px;display:grid;grid-template-columns:1fr 1fr;gap:80px;align-items:center; }
+  .contact-title { font-family:'Playfair Display',serif;font-size:clamp(32px,5vw,56px);font-weight:700;color:var(--dust);line-height:1.1; }
+  .contact-text { font-size:17px;color:#8a7a6a;margin-top:16px;line-height:1.8; }
+  .contact-links { display:flex;flex-direction:column;gap:20px; }
+  .contact-item { display:flex;flex-direction:column;gap:4px;padding:24px 28px;border:1px solid rgba(200,168,130,0.15);transition:border-color 0.3s,background 0.3s,transform 0.4s; }
+  .contact-item:hover { border-color:rgba(200,168,130,0.45);background:rgba(200,168,130,0.04);transform:translateX(8px); }
+  .contact-type { font-family:'Cormorant Garamond',serif;font-size:11px;letter-spacing:0.4em;text-transform:uppercase;color:var(--brown); }
+  .contact-email { font-family:'Playfair Display',serif;font-size:18px;color:var(--gold);text-decoration:none;word-break:break-all; }
+
+  /* FOOTER */
+  footer { background:var(--darker);border-top:1px solid var(--mid);padding:40px 48px;display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:20px; }
+  .footer-logo { font-family:'Playfair Display',serif;font-size:12px;font-weight:700;letter-spacing:0.3em;text-transform:uppercase;color:var(--gold-dim); }
+  .footer-copy { font-family:'Cormorant Garamond',serif;font-size:13px;color:var(--gray); }
+
+  /* KEYFRAMES */
+  @keyframes fadeUp { from{opacity:0;transform:translateY(40px)} to{opacity:1;transform:translateY(0)} }
+  @keyframes menuIn { from{opacity:0;transform:translateY(24px)} to{opacity:1;transform:translateY(0)} }
+  @keyframes expandLine { from{width:0} to{width:50px} }
+  @keyframes caretPulse { 0%,100%{opacity:0.3;transform:scaleY(1)} 50%{opacity:1;transform:scaleY(1.15)} }
+  @keyframes pulseDot { 0%,100%{opacity:1;transform:scale(1)} 50%{opacity:0.3;transform:scale(0.6)} }
+
+  /* REVEAL */
+  .reveal { opacity:0;transform:translateY(48px);transition:opacity 0.9s cubic-bezier(0.16,1,0.3,1),transform 0.9s cubic-bezier(0.16,1,0.3,1); }
+  .reveal.visible { opacity:1;transform:translateY(0); }
+  .reveal-left { opacity:0;transform:translateX(-52px);transition:opacity 0.9s cubic-bezier(0.16,1,0.3,1),transform 0.9s cubic-bezier(0.16,1,0.3,1); }
+  .reveal-left.visible { opacity:1;transform:translateX(0); }
+  .reveal-right { opacity:0;transform:translateX(52px);transition:opacity 0.9s cubic-bezier(0.16,1,0.3,1),transform 0.9s cubic-bezier(0.16,1,0.3,1); }
+  .reveal-right.visible { opacity:1;transform:translateX(0); }
+  .reveal-scale { opacity:0;transform:scale(0.93);transition:opacity 1s cubic-bezier(0.16,1,0.3,1),transform 1s cubic-bezier(0.16,1,0.3,1); }
+  .reveal-scale.visible { opacity:1;transform:scale(1); }
+  .d1{transition-delay:0.1s} .d2{transition-delay:0.2s} .d3{transition-delay:0.3s}
+
+  /* MOBILE */
+  @media(max-width:768px){
+    nav{padding:18px 24px} nav.scrolled{padding:12px 24px}
+    .nav-links{display:none} .hamburger{display:flex}
+    .hero{padding:120px 24px 80px} .hero-caret{display:none}
+    .next-release{padding:32px 24px}
+    .cd-grid{gap:12px}
+    .cd-sep{font-size:20px}
+    .about-wrap{grid-template-columns:1fr;gap:48px;padding:80px 24px} .about-right{padding-top:0}
+    .artists-inner{padding:60px 24px}
+    .mystery-card{min-height:340px}
+    .mystery-inner{padding:48px 24px}
+    .mystery-bg-text{font-size:100px}
+    .contact-inner{grid-template-columns:1fr;gap:48px;padding:80px 24px}
+    .contact-item:hover{transform:none}
+    footer{flex-direction:column;align-items:flex-start;padding:36px 24px;gap:12px}
+  }
+  @media(max-width:480px){
+    .mystery-inner{padding:40px 20px}
+    .mystery-bg-text{display:none}
+    .cd-unit{min-width:44px}
+    .cd-num{font-size:28px}
+  }
+</style>
+</head>
+<body>
+
+<nav id="nav">
+  <div class="nav-logo">Caliche Records</div>
+  <ul class="nav-links">
+    <li><a href="#about">About</a></li>
+    <li><a href="#artists">Artists</a></li>
+    <li><a href="#contact">Contact</a></li>
+  </ul>
+  <button class="hamburger" id="hamburger" aria-label="Menu">
+    <span></span><span></span><span></span>
+  </button>
+</nav>
+
+<div class="mobile-menu" id="mobileMenu">
+  <a href="#about" class="mob-link">About</a>
+  <a href="#artists" class="mob-link">Artists</a>
+  <a href="#contact" class="mob-link">Contact</a>
+</div>
+
+<div class="hero">
+  <div class="hero-bg" id="heroBg"></div>
+  <p class="label-eyebrow">An Independent Record Label</p>
+  <h1 class="hero-title">Caliche<br>Records</h1>
+  <p class="hero-subtitle">Rooted. Uncompromising. Real.</p>
+  <div class="hero-divider"></div>
+  <p class="hero-tagline">The music. Nothing else.</p>
+  <div class="hero-caret">
+    <span>Scroll</span>
+    <div class="caret-line"></div>
+  </div>
+</div>
+
+<div class="next-release">
+  <span class="next-release-label">Next Release</span>
+  <div class="next-release-title">The Owlhoots &nbsp;·&nbsp; Lost Road &nbsp;·&nbsp; May 30, 2026</div>
+  <div class="cd-grid">
+    <div class="cd-unit"><span class="cd-num" id="cd-days">00</span><span class="cd-label">Days</span></div>
+    <div class="cd-sep">·</div>
+    <div class="cd-unit"><span class="cd-num" id="cd-hours">00</span><span class="cd-label">Hours</span></div>
+    <div class="cd-sep">·</div>
+    <div class="cd-unit"><span class="cd-num" id="cd-mins">00</span><span class="cd-label">Minutes</span></div>
+    <div class="cd-sep">·</div>
+    <div class="cd-unit"><span class="cd-num" id="cd-secs">00</span><span class="cd-label">Seconds</span></div>
+  </div>
+</div>
+
+<div class="full-rule"></div>
+
+<div id="about">
+  <div class="about-wrap">
+    <div class="reveal-left">
+      <span class="section-label">About the Label</span>
+      <h2 class="section-title">Hard ground.<br>Honest music.</h2>
+      <div class="section-rule"></div>
+      <p class="about-text"><strong>Caliche Records</strong> was built on a simple belief — the most powerful music comes from people who have lived something worth singing about.</p>
+      <p class="about-text">We work with artists who don't ask permission. Who don't fit neatly into formats. Who make music that sits in the dark corners of American roots, outlaw country, and the wide restless space in between.</p>
+      <p class="about-text">No shortcuts. No compromises. Just songs.</p>
+    </div>
+    <div class="about-right reveal-right">
+      <ul class="values-list" id="valuesList">
+        <li>Artists who have something to say</li>
+        <li>Music built to last, not to trend</li>
+        <li>Rooted in American soil, built outside the machine</li>
+        <li>Independent. Always.</li>
+      </ul>
+    </div>
+  </div>
+</div>
+
+<div class="full-rule"></div>
+
+<div class="artists-wrap" id="artists">
+  <div class="artists-inner">
+    <span class="section-label reveal">Our Artists</span>
+    <h2 class="section-title reveal d1">Something is coming.</h2>
+    <div class="section-rule reveal d2"></div>
+    <div class="mystery-card reveal-scale d1">
+      <div class="mystery-bg-text">OWL</div>
+      <div class="mystery-inner">
+        <div class="mystery-eyebrow">Outlaw Country &nbsp;·&nbsp; Dark Americana &nbsp;·&nbsp; Caliche Records</div>
+        <div class="mystery-name">The<br><em>Owlhoots</em></div>
+        <div class="mystery-rule"></div>
+        <p class="mystery-tagline">
+          Five men. One sound.<br>
+          They don't play music.<br>
+          They survive it.
+        </p>
+        <div class="mystery-coming">
+          <div class="pulse-dot"></div>
+          Debut Single — May 30, 2026
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="full-rule"></div>
+
+<div class="contact-wrap" id="contact">
+  <div class="contact-inner">
+    <div class="reveal-left">
+      <h2 class="contact-title">Get in<br>touch.</h2>
+      <p class="contact-text">For press inquiries, playlist submissions, and general contact.</p>
+    </div>
+    <div class="contact-links reveal-right">
+      <div class="contact-item">
+        <span class="contact-type">General &amp; Press</span>
+        <a href="mailto:info@calicherecords.com" class="contact-email">info@calicherecords.com</a>
+      </div>
+      <div class="contact-item">
+        <span class="contact-type">Follow the band</span>
+        <a href="https://instagram.com/theowlhoots" class="contact-email" style="font-size:17px;">@theowlhoots</a>
+      </div>
+    </div>
+  </div>
+</div>
+
+<footer>
+  <div class="footer-logo">Caliche Records</div>
+  <div class="footer-copy">© 2026 Caliche Records. All rights reserved.</div>
+</footer>
+
+<script>
+  // Nav
+  const nav = document.getElementById('nav');
+  window.addEventListener('scroll', () => nav.classList.toggle('scrolled', window.scrollY > 50), { passive: true });
+
+  // Parallax
+  const heroBg = document.getElementById('heroBg');
+  window.addEventListener('scroll', () => {
+    if (window.scrollY < window.innerHeight * 1.5) heroBg.style.transform = `translateY(${window.scrollY * 0.35}px)`;
+  }, { passive: true });
+
+  // Countdown — 30 May 2026 12:00 ET (UTC-4 in May = UTC+16:00)
+  const target = new Date('2026-05-30T16:00:00Z');
+  function updateCountdown() {
+    const now = new Date();
+    const diff = target - now;
+    if (diff <= 0) {
+      document.getElementById('cd-days').textContent = '00';
+      document.getElementById('cd-hours').textContent = '00';
+      document.getElementById('cd-mins').textContent = '00';
+      document.getElementById('cd-secs').textContent = '00';
+      return;
+    }
+    const d = Math.floor(diff / 86400000);
+    const h = Math.floor((diff % 86400000) / 3600000);
+    const m = Math.floor((diff % 3600000) / 60000);
+    const s = Math.floor((diff % 60000) / 1000);
+    document.getElementById('cd-days').textContent = String(d).padStart(2,'0');
+    document.getElementById('cd-hours').textContent = String(h).padStart(2,'0');
+    document.getElementById('cd-mins').textContent = String(m).padStart(2,'0');
+    document.getElementById('cd-secs').textContent = String(s).padStart(2,'0');
+  }
+  updateCountdown();
+  setInterval(updateCountdown, 1000);
+
+  // Reveals
+  const revealEls = document.querySelectorAll('.reveal, .reveal-left, .reveal-right, .reveal-scale');
+  const obs = new IntersectionObserver((entries) => {
+    entries.forEach(e => { if (e.isIntersecting) e.target.classList.add('visible'); });
+  }, { threshold: 0.1, rootMargin: '0px 0px -50px 0px' });
+  revealEls.forEach(el => obs.observe(el));
+
+  // Values stagger
+  const valuesList = document.getElementById('valuesList');
+  const valObs = new IntersectionObserver((entries) => {
+    entries.forEach(e => {
+      if (e.isIntersecting) {
+        e.target.querySelectorAll('li').forEach((li, i) => {
+          setTimeout(() => {
+            li.style.transition = `opacity 0.6s ${i * 0.13}s ease, transform 0.6s ${i * 0.13}s cubic-bezier(0.16,1,0.3,1), color 0.3s`;
+            li.style.opacity = '1';
+            li.style.transform = 'translateX(0)';
+          }, 80);
+        });
+        valObs.unobserve(e.target);
+      }
+    });
+  }, { threshold: 0.2 });
+  if (valuesList) valObs.observe(valuesList);
+
+  // Hamburger
+  const hamburger = document.getElementById('hamburger');
+  const mobileMenu = document.getElementById('mobileMenu');
+  hamburger.addEventListener('click', () => {
+    hamburger.classList.toggle('open');
+    mobileMenu.classList.toggle('open');
+    document.body.style.overflow = mobileMenu.classList.contains('open') ? 'hidden' : '';
+  });
+  document.querySelectorAll('.mob-link').forEach(link => {
+    link.addEventListener('click', () => {
+      hamburger.classList.remove('open');
+      mobileMenu.classList.remove('open');
+      document.body.style.overflow = '';
+    });
+  });
+</script>
+</body>
+</html>
