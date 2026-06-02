@@ -108,7 +108,7 @@
 
   /* MEMBER BOXES */
   .member-boxes { display:grid;grid-template-columns:repeat(5,1fr);gap:0;background:transparent;border:none;margin-top:0;position:relative;z-index:3;width:100%; }
-  .member-box { background:var(--darker);height:320px;position:relative;overflow:hidden;transition:background 0.4s;display:flex;flex-direction:column; }
+  .member-box { background:var(--darker);height:240px;position:relative;overflow:hidden;transition:background 0.4s;display:flex;flex-direction:column; }
   .member-box:hover { background:#120d08; }
   .member-photo { flex:1;background-size:cover;background-position:center top;filter:grayscale(0.5) brightness(0.7);transition:filter 0.5s; }
   .member-box:hover .member-photo { filter:grayscale(0.2) brightness(0.85); }
@@ -399,7 +399,7 @@
           They don't play music.<br>
           They survive it.
         </p>
-        <div class="mystery-coming" id="mysteryComing"><div class="pulse-dot"></div>Debut EP — Delayed</div>
+        <a href="#" class="mystery-coming" id="mysteryComing" style="text-decoration:none;"><div class="pulse-dot"></div>Debut EP — Out Now</a>
       </div>
       <div class="member-boxes" id="memberBoxes">
         <div class="member-box revealed">
@@ -448,6 +448,55 @@
           </div>
         </div>
       </div>
+  </div>
+</div>
+
+<div class="full-rule"></div>
+
+<div class="artists-wrap">
+  <div class="artists-inner">
+    <span class="section-label reveal">Coming Soon</span>
+    <h2 class="section-title reveal d1">A New Act</h2>
+    <div class="section-rule reveal d2"></div>
+    <div class="mystery-card reveal-scale d1" style="min-height:420px;">
+      <div class="mystery-bg-text" style="font-size:clamp(80px,16vw,190px);">SOON</div>
+      <div class="mystery-inner">
+        <div class="mystery-eyebrow">Caliche Records &nbsp;·&nbsp; Not yet</div>
+        <div class="mystery-name" style="font-size:clamp(28px,5vw,64px);">Something<br><em>is coming.</em></div>
+        <div class="mystery-rule"></div>
+        <p class="mystery-tagline">Three. Unannounced.<br>When it's ready.</p>
+        <div class="mystery-coming"><div class="pulse-dot"></div><span class="mc-label">New Band &nbsp;·&nbsp; Stay close</span></div>
+      </div>
+      <div class="member-boxes" style="grid-template-columns:repeat(3,1fr);">
+        <div class="member-box revealed">
+          <div class="mb-photo" style="background:linear-gradient(160deg,#0e0b08 0%,#1c1208 60%,#080604 100%);"></div>
+          <div class="mb-gradient"></div>
+          <div class="mb-label">
+            <span class="mb-rule"></span>
+            <span class="mb-name" style="opacity:0.3;letter-spacing:0.25em;font-size:11px;">Undisclosed</span>
+            <span class="mb-role" style="opacity:0.5;">— — —</span>
+          </div>
+        </div>
+        <div class="member-box revealed">
+          <div class="mb-photo" style="background:linear-gradient(160deg,#100d06 0%,#0e0a06 60%,#0a0704 100%);"></div>
+          <div class="mb-gradient"></div>
+          <div class="mb-label">
+            <span class="mb-rule"></span>
+            <span class="mb-name" style="opacity:0.3;letter-spacing:0.25em;font-size:11px;">Undisclosed</span>
+            <span class="mb-role" style="opacity:0.5;">— — —</span>
+          </div>
+        </div>
+        <div class="member-box revealed">
+          <div class="mb-photo" style="background:linear-gradient(160deg,#0a0704 0%,#1a1008 60%,#0e0b08 100%);"></div>
+          <div class="mb-gradient"></div>
+          <div class="mb-label">
+            <span class="mb-rule"></span>
+            <span class="mb-name" style="opacity:0.3;letter-spacing:0.25em;font-size:11px;">Undisclosed</span>
+            <span class="mb-role" style="opacity:0.5;">— — —</span>
+          </div>
+        </div>
+      </div>
+    </div>
   </div>
 </div>
 
