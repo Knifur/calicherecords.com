@@ -63,9 +63,9 @@
 
   /* SHARED */
   .full-rule { width:100%;height:1px;background:linear-gradient(to right,transparent,var(--mid),transparent); }
-  .section-label { font-family:'Cormorant Garamond',serif;font-size:12px;letter-spacing:0.5em;text-transform:uppercase;color:var(--brown);margin-bottom:16px;display:block; }
-  .section-title { font-family:'Playfair Display',serif;font-size:clamp(32px,6vw,64px);font-weight:700;line-height:1.05;color:var(--dust);margin-bottom:32px; }
-  .section-rule { width:36px;height:2px;background:var(--brown);margin-bottom:40px; }
+  .section-label { font-family:'Cormorant Garamond',serif;font-size:12px;letter-spacing:0.5em;text-transform:uppercase;color:var(--brown);margin-bottom:0;display:block; }
+  .section-title { font-family:'Playfair Display',serif;font-size:clamp(32px,6vw,64px);font-weight:700;line-height:1.05;color:var(--dust);margin-bottom:10px; }
+  .section-rule { width:36px;height:2px;background:var(--brown);margin-bottom:14px; }
 
   /* ABOUT */
   .about-wrap { max-width:1200px;margin:0 auto;padding:32px 48px 80px;display:grid;grid-template-columns:1fr 1fr;gap:80px;align-items:start; }
@@ -80,9 +80,13 @@
   /* ARTISTS */
   .artists-wrap { background:linear-gradient(to bottom,var(--darker),#100c07,var(--darker)); }
   .artists-inner { max-width:1200px;margin:0 auto;padding:120px 48px; }
+  /* Tightened vertical joints between mystery cards (top padding above Owlhoots preserved) */
+  #artists .artists-inner { padding-bottom:44px; }
+  #effugite .artists-inner { padding-top:44px;padding-bottom:44px; }
+  #comingsoon .artists-inner { padding-top:44px; }
 
   /* MYSTERY CARD */
-  .mystery-card { border:1px solid var(--mid);background:rgba(12,8,4,0.97);overflow:hidden;margin-top:48px;position:relative;min-height:360px;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;cursor:default; }
+  .mystery-card { border:1px solid var(--mid);background:rgba(12,8,4,0.97);overflow:hidden;margin-top:14px;position:relative;min-height:360px;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;cursor:default; }
   .mystery-band-bg { position:absolute;inset:0;background-size:cover;background-position:center;opacity:0;filter:grayscale(100%) brightness(0.3);z-index:0; }
   .mystery-card::before { content:'';position:absolute;inset:0;z-index:1;
     background:radial-gradient(ellipse at 50% 30%, rgba(139,69,19,0.14) 0%, transparent 60%),
@@ -335,7 +339,7 @@
 </div>
 
 <nav id="nav">
-  <div class="nav-logo">Caliche Records</div>
+  <div class="nav-logo">Caliche Records <span style="opacity:0.6">INT</span></div>
   <ul class="nav-links">
     <li><a href="#about">About</a></li>
     <li><a href="#artists">Artists</a></li>
@@ -413,7 +417,7 @@
 
 <div class="full-rule"></div>
 
-<div class="artists-wrap">
+<div class="artists-wrap" id="effugite">
   <div class="artists-inner">
     <span class="section-label reveal"></span>
     <h2 class="section-title reveal d1" style="font-family:'Metal Mania',cursive;">Effugite</h2>
@@ -429,6 +433,29 @@
           Not all that burns<br>
           gives warmth.
         </p>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="full-rule"></div>
+
+<div class="artists-wrap" id="comingsoon">
+  <div class="artists-inner">
+    <span class="section-label reveal"></span>
+    <h2 class="section-title reveal d1">Something is coming</h2>
+    <div class="section-rule reveal d2"></div>
+    <div class="mystery-card reveal-scale d1">
+      <div class="mystery-bg-text">SOON</div>
+      <div class="mystery-inner">
+        <div class="mystery-eyebrow">Caliche Records</div>
+        <div class="mystery-name">Something<br><em>is coming</em></div>
+        <div class="mystery-rule"></div>
+        <p class="mystery-tagline">
+          It started with three.<br>
+          It won't end there.
+        </p>
+        <div class="mystery-coming">Coming soon</div>
       </div>
     </div>
   </div>
