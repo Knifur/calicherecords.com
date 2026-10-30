@@ -1,0 +1,16 @@
+name: Supabase keepalive
+
+on:
+  schedule:
+    - cron: '17 6 * * *'
+  workflow_dispatch:
+
+jobs:
+  ping:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Läs keepalive från Supabase
+        run: |
+          curl -fsS "https://tvsgupgoqltuktffkfrx.supabase.co/rest/v1/keepalive?select=ok" \
+            -H "apikey: sb_publishable_9iZmfnAENWhuznPDRzKOig_igxZNIj6" \
+            -H "Authorization: Bearer sb_publishable_9iZmfnAENWhuznPDRzKOig_igxZNIj6"
