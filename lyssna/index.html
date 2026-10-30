@@ -1,0 +1,377 @@
+<!DOCTYPE html>
+<html lang="sv">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<title>Lyssna — Caliche Records</title>
+<meta name="robots" content="noindex, nofollow">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,700;0,900;1,400&family=EB+Garamond:ital,wght@0,400;0,500;1,400&family=Cormorant+Garamond:ital,wght@0,300;0,400;1,400&family=Vazirmatn:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  :root { --dark:#0e0b08;--darker:#080604;--brown:#8B4513;--gold:#C8A882;--gold-dim:#8a6a4a;--dust:#F5F0EB;--gray:#6a6050;--mid:#3a2e22;--red:#e0702a; }
+  body { background:var(--darker);color:var(--dust);font-family:'EB Garamond',Georgia,serif;font-size:18px;line-height:1.6;min-height:100vh;-webkit-tap-highlight-color:transparent; }
+  body::before { content:'';position:fixed;inset:0;background:radial-gradient(ellipse at 50% 0%, rgba(139,69,19,0.15) 0%, transparent 60%);pointer-events:none;z-index:0; }
+  .wrap { position:relative;z-index:1;max-width:720px;margin:0 auto;padding:0 20px 80px; }
+
+  header { position:sticky;top:0;z-index:50;background:rgba(8,6,4,0.96);box-shadow:0 1px 0 rgba(58,46,34,0.4);padding:16px 20px;display:flex;justify-content:space-between;align-items:center;gap:16px; }
+  .logo { font-family:'Playfair Display',serif;font-size:14px;font-weight:700;letter-spacing:0.2em;white-space:nowrap;text-transform:uppercase;color:#E2C9A6; }
+  .logo span { opacity:.85 }
+  .linkbtn { background:none;border:none;font-family:'Cormorant Garamond',serif;font-size:14px;font-weight:400;letter-spacing:0.2em;text-transform:uppercase;color:var(--gold);cursor:pointer;padding:6px 0; }
+  .linkbtn:hover { color:var(--dust); }
+  header .linkbtn { letter-spacing:0.12em;white-space:nowrap; }
+
+  .eyebrow { font-family:'Cormorant Garamond',serif;font-size:12px;letter-spacing:0.5em;text-transform:uppercase;color:var(--gold);display:flex;align-items:center;gap:10px; }
+  .dot { width:7px;height:7px;border-radius:50%;background:var(--gold);animation:pulseDot 2s infinite; }
+  h1 { font-family:'Playfair Display',serif;font-weight:900;font-size:clamp(38px,9vw,56px);line-height:0.95;color:var(--dust);margin:14px 0 6px; }
+  h1 em { color:var(--gold);font-style:italic;font-weight:400; }
+  .sub { font-family:'Playfair Display',serif;font-style:italic;color:var(--gold);letter-spacing:0.05em;font-size:17px; }
+  .rule { height:1px;background:linear-gradient(90deg,transparent,var(--mid),transparent);margin:28px 0; }
+  .help { color:#b0a090;font-style:italic;font-size:16px; }
+
+  .btn { display:inline-flex;align-items:center;justify-content:center;gap:8px;font-family:'Cormorant Garamond',serif;font-size:15px;letter-spacing:.25em;text-transform:uppercase;color:var(--gold);background:none;border:1px solid rgba(200,168,130,.4);padding:14px 26px;cursor:pointer;transition:all .3s cubic-bezier(0.16,1,0.3,1);min-height:48px; }
+  .btn:hover { border-color:var(--gold);transform:translateY(-2px);box-shadow:0 8px 32px rgba(200,168,130,.2); }
+  .btn:disabled { opacity:.4;cursor:default;transform:none;box-shadow:none; }
+  .btn.full { width:100%; }
+  .btn.small { padding:8px 14px;font-size:12px;min-height:36px; }
+
+  label.field { display:block;margin-bottom:18px; }
+  label.field > span { display:block;font-family:'Cormorant Garamond',serif;font-size:13px;letter-spacing:0.3em;text-transform:uppercase;color:var(--gold);margin-bottom:6px; }
+  input[type=text], input[type=email], input[type=password], select, textarea { width:100%;background:var(--dark);border:1px solid var(--mid);color:var(--dust);font-family:'EB Garamond',Georgia,serif;font-size:18px;padding:12px 14px;border-radius:0;outline:none;transition:border-color .3s; }
+  input:focus, select:focus, textarea:focus { border-color:var(--gold-dim); }
+  textarea { min-height:110px;resize:vertical; }
+  .fa { font-family:'Vazirmatn','EB Garamond',sans-serif;direction:rtl;text-align:right; }
+  input[type=file] { color:var(--gold);font-family:'Cormorant Garamond',serif;font-size:15px; }
+  .err { color:var(--red);font-size:16px;margin-top:10px;min-height:1em; }
+  .ok { color:var(--gold);font-size:16px;margin-top:10px; }
+
+  .card { display:block;width:100%;text-align:left;background:#100c07;border:1px solid rgba(200,168,130,0.15);padding:18px 20px;margin-bottom:12px;cursor:pointer;color:inherit;font:inherit;position:relative;overflow:hidden;transition:all .3s cubic-bezier(0.16,1,0.3,1); }
+  .card:hover { border-color:rgba(200,168,130,0.45);background:#120d08;transform:translateX(8px); }
+  .card-title { font-family:'Playfair Display',serif;font-weight:700;font-size:22px;color:var(--dust);line-height:1.2; }
+  .card-meta { font-family:'Cormorant Garamond',serif;font-size:14px;letter-spacing:0.18em;text-transform:uppercase;color:#b0a090;margin-top:6px; }
+  .badge { display:inline-block;margin-left:8px;color:var(--red);letter-spacing:0.1em; }
+
+  .player { position:sticky;top:57px;z-index:40;background:rgba(14,11,8,0.97);border:1px solid var(--mid);padding:12px;margin:18px 0 10px; }
+  .player audio { width:100%;display:block; }
+  .ctrls { display:flex;gap:10px;margin-top:10px; }
+  .ctrls .btn { flex:1;font-size:16px;letter-spacing:.15em;padding:14px 10px; }
+  .player .help { font-size:14px;margin-top:6px;text-align:center; }
+
+  .lyrics { margin-top:10px; }
+  .tag { font-family:'Cormorant Garamond',serif;font-size:12px;letter-spacing:0.3em;text-transform:uppercase;color:var(--gold);margin:26px 0 8px;direction:ltr; }
+  .line { font-family:'Vazirmatn',sans-serif;direction:rtl;text-align:right;font-size:22px;line-height:2.1;padding:2px 0; }
+  .w { display:inline-block;padding:0 4px;margin:0 1px;border-bottom:1px solid transparent;cursor:pointer;transition:all .2s; }
+  .w:hover { color:var(--gold); }
+  .w.has { color:var(--red);border-bottom-color:var(--red); }
+  .w.done { color:var(--gold);border-bottom:1px dashed var(--gold-dim); }
+
+  .corr { border-left:1px solid var(--brown);padding:10px 0 10px 14px;margin-bottom:14px; }
+  .corr .word { font-family:'Vazirmatn',sans-serif;font-size:20px;color:var(--dust); }
+  .corr .det { font-size:16px;color:#b0a090; }
+  .corr .det b { font-weight:500;color:var(--gold);font-family:'Cormorant Garamond',serif;letter-spacing:0.15em;text-transform:uppercase;font-size:12px;margin-right:6px; }
+  .corr.done { opacity:.7;border-left-color:var(--gold-dim); }
+  .row { display:flex;gap:10px;flex-wrap:wrap;align-items:center;margin-top:8px; }
+
+  .sheet-bg { position:fixed;inset:0;background:rgba(0,0,0,0.7);z-index:100;display:none; }
+  .sheet { position:fixed;left:0;right:0;bottom:0;z-index:101;background:var(--dark);border-top:1px solid var(--gold-dim);padding:22px 20px calc(22px + env(safe-area-inset-bottom));max-height:90vh;overflow:auto;transform:translateY(100%);transition:transform .35s cubic-bezier(0.16,1,0.3,1); }
+  .sheet.open { transform:translateY(0); }
+  .sheet-inner { max-width:680px;margin:0 auto; }
+  .sheet .big { font-family:'Vazirmatn',sans-serif;font-size:30px;color:var(--gold);direction:rtl;text-align:center;margin:6px 0 2px; }
+  .sheet .ctx { font-family:'Vazirmatn',sans-serif;direction:rtl;text-align:center;color:#b0a090;font-size:16px;margin-bottom:18px; }
+
+  .hidden { display:none !important; }
+  .fade { animation:fadeUp .6s cubic-bezier(0.16,1,0.3,1); }
+  @keyframes fadeUp { from{opacity:0;transform:translateY(24px)} to{opacity:1;transform:translateY(0)} }
+  @keyframes pulseDot { 0%,100%{opacity:1;transform:scale(1)} 50%{opacity:0.3;transform:scale(0.6)} }
+  footer { position:relative;z-index:1;border-top:1px solid var(--mid);padding:22px 20px;text-align:center;font-family:'Cormorant Garamond',serif;font-size:13px;letter-spacing:0.15em;color:#b0a090; }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="logo">Caliche Records <span>INT</span></div>
+  <button class="linkbtn hidden" id="logoutBtn">Logga ut</button>
+</header>
+
+<main class="wrap" id="app"></main>
+
+<div class="sheet-bg" id="sheetBg"></div>
+<div class="sheet" id="sheet"><div class="sheet-inner" id="sheetInner"></div></div>
+
+<footer>Caliche Records International · Endast för inbjudna</footer>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.min.js"></script>
+<script>
+const SUPABASE_URL = 'https://tvsgupgoqltuktffkfrx.supabase.co';
+const SUPABASE_KEY = 'sb_publishable_9iZmfnAENWhuznPDRzKOig_igxZNIj6';
+const DEFAULT_EMAIL = 'ajsan@calicherecords.com';
+const sb = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+
+const app = document.getElementById('app');
+const logoutBtn = document.getElementById('logoutBtn');
+const sheet = document.getElementById('sheet'), sheetBg = document.getElementById('sheetBg'), sheetInner = document.getElementById('sheetInner');
+let state = { songs: [], takes: [], corrections: [], take: null, audioUrl: null };
+
+const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const fmtTime = t => { if (t == null) return ''; t = Math.floor(t); return Math.floor(t/60) + ':' + String(t%60).padStart(2,'0'); };
+const kindName = k => k === 'full' ? 'Hela låten' : 'A cappella';
+
+function parseLyrics(text) {
+  return text.split(/\r?\n/).map(l => l.trim()).filter(l => l.length)
+    .map(l => /^\[.*\]$/.test(l) ? { type:'tag', text:l.slice(1,-1) } : { type:'line', text:l });
+}
+
+/* ---------- Routing ---------- */
+function go(hash) { location.hash = hash; }
+window.addEventListener('hashchange', route);
+
+async function route() {
+  const { data: { session } } = await sb.auth.getSession();
+  logoutBtn.classList.toggle('hidden', !session);
+  if (!session) return renderLogin();
+  const h = location.hash.replace(/^#/, '');
+  if (h.startsWith('take/')) return renderTake(h.slice(5));
+  if (h === 'ny') return renderNew();
+  return renderList();
+}
+
+/* ---------- Login ---------- */
+function renderLogin() {
+  app.innerHTML = `
+  <section class="fade" style="padding-top:56px">
+    <div class="eyebrow"><span class="dot"></span>Studio</div>
+    <h1>Lyssna <em>&amp; rätta</em></h1>
+    <p class="sub">A cappella-tagningar och texter</p>
+    <div class="rule"></div>
+    <form id="loginForm">
+      <label class="field hidden" id="emailField"><span>Användare</span>
+        <input type="email" id="email" value="${DEFAULT_EMAIL}" autocomplete="username"></label>
+      <label class="field"><span>Lösenord</span>
+        <input type="password" id="pw" autocomplete="current-password" required></label>
+      <button class="btn full" type="submit">Logga in</button>
+      <div class="err" id="loginErr"></div>
+    </form>
+    <p style="margin-top:20px;text-align:center"><button class="linkbtn" id="otherUser">Annan användare</button></p>
+  </section>`;
+  document.getElementById('otherUser').onclick = () => { document.getElementById('emailField').classList.remove('hidden'); document.getElementById('otherUser').classList.add('hidden'); };
+  document.getElementById('loginForm').onsubmit = async e => {
+    e.preventDefault();
+    const err = document.getElementById('loginErr'); err.textContent = '';
+    const { error } = await sb.auth.signInWithPassword({ email: document.getElementById('email').value.trim(), password: document.getElementById('pw').value });
+    if (error) { err.textContent = 'Fel lösenord. Försök igen.'; return; }
+    route();
+  };
+}
+logoutBtn.onclick = async () => { await sb.auth.signOut(); go(''); route(); };
+
+/* ---------- Data ---------- */
+async function loadAll() {
+  const [s, t, c] = await Promise.all([
+    sb.from('songs').select('*').order('created_at', { ascending:false }),
+    sb.from('takes').select('id,song_id,label,kind,audio_path,created_at').order('created_at', { ascending:false }),
+    sb.from('corrections').select('id,take_id,status')
+  ]);
+  if (s.error || t.error || c.error) throw (s.error || t.error || c.error);
+  state.songs = s.data; state.takes = t.data; state.corrections = c.data;
+}
+
+/* ---------- Song list ---------- */
+async function renderList() {
+  app.innerHTML = `<p class="help" style="padding-top:40px">Hämtar…</p>`;
+  try { await loadAll(); } catch (e) { app.innerHTML = `<p class="err" style="padding-top:40px">Kunde inte hämta låtarna.</p>`; return; }
+  const open = id => state.corrections.filter(c => c.take_id === id && c.status !== 'klar').length;
+  const songsHtml = state.songs.map(song => {
+    const takes = state.takes.filter(t => t.song_id === song.id);
+    return `
+      <div class="eyebrow" style="margin:34px 0 12px">${esc(song.artist)}</div>
+      <div class="card-title" style="margin-bottom:12px">${esc(song.title)}</div>
+      ${takes.map(t => { const n = open(t.id); return `
+        <button class="card" data-take="${t.id}">
+          <div class="card-title" style="font-size:18px">${esc(t.label)}</div>
+          <div class="card-meta">${kindName(t.kind)} · ${new Date(t.created_at).toLocaleDateString('sv-SE')}${n ? `<span class="badge">${n} att rätta</span>` : ''}</div>
+        </button>`; }).join('') || '<p class="help">Inga tagningar än.</p>'}`;
+  }).join('');
+  app.innerHTML = `
+  <section class="fade" style="padding-top:40px">
+    <div class="eyebrow"><span class="dot"></span>Studio</div>
+    <h1>Låtar</h1>
+    <p class="sub">Tryck på en tagning för att lyssna</p>
+    ${songsHtml || '<div class="rule"></div><p class="help">Inga låtar uppladdade än.</p>'}
+    <div class="rule"></div>
+    <button class="btn full" id="newBtn">+ Lägg till tagning</button>
+  </section>`;
+  app.querySelectorAll('[data-take]').forEach(b => b.onclick = () => go('take/' + b.dataset.take));
+  document.getElementById('newBtn').onclick = () => go('ny');
+}
+
+/* ---------- Take view ---------- */
+async function renderTake(id) {
+  app.innerHTML = `<p class="help" style="padding-top:40px">Hämtar…</p>`;
+  const t = await sb.from('takes').select('*, songs(title,artist)').eq('id', id).single();
+  if (t.error) { app.innerHTML = `<p class="err" style="padding-top:40px">Tagningen hittades inte.</p>`; return; }
+  state.take = t.data;
+  let audioUrl = '';
+  if (t.data.audio_path) {
+    const s = await sb.storage.from('audio').createSignedUrl(t.data.audio_path, 60 * 60 * 6);
+    if (!s.error) audioUrl = s.data.signedUrl;
+  }
+  app.innerHTML = `
+  <section class="fade" style="padding-top:28px">
+    <button class="linkbtn" id="backBtn">← Alla låtar</button>
+    <div class="eyebrow" style="margin-top:18px"><span class="dot"></span>${esc(t.data.songs?.artist)} · ${kindName(t.data.kind)}</div>
+    <h1 style="font-size:clamp(32px,8vw,46px)">${esc(t.data.songs?.title)}</h1>
+    <p class="sub">${esc(t.data.label)}</p>
+    <div class="player">
+      ${audioUrl ? `<audio id="audio" controls preload="metadata" src="${esc(audioUrl)}"></audio>
+      <div class="ctrls">
+        <button class="btn" id="back15">⟲ 15 sek</button>
+        <button class="btn" id="playBtn">▶ Spela</button>
+      </div>` : '<p class="help">Ingen ljudfil.</p>'}
+      <p class="help">Tryck på ett ord som låter fel</p>
+    </div>
+    <div class="lyrics" id="lyrics"></div>
+    <div class="rule"></div>
+    <div class="eyebrow">Rättningar</div>
+    <div id="corrList" style="margin-top:16px"></div>
+  </section>`;
+  document.getElementById('backBtn').onclick = () => go('');
+  const au = document.getElementById('audio');
+  if (au) {
+    const pb = document.getElementById('playBtn');
+    const sync = () => { pb.textContent = au.paused ? '▶ Spela' : '❚❚ Paus'; };
+    pb.onclick = () => au.paused ? au.play() : au.pause();
+    document.getElementById('back15').onclick = () => { au.currentTime = Math.max(0, au.currentTime - 15); };
+    au.addEventListener('play', sync); au.addEventListener('pause', sync);
+  }
+  await refreshCorrections();
+}
+
+async function refreshCorrections() {
+  const take = state.take;
+  const c = await sb.from('corrections').select('*').eq('take_id', take.id).order('line_index').order('created_at');
+  const list = c.data || [];
+  // lyrics with marks
+  const lyr = document.getElementById('lyrics');
+  lyr.innerHTML = (take.lyrics || []).map((l, i) => {
+    if (l.type === 'tag') return `<div class="tag">${esc(l.text)}</div>`;
+    const words = l.text.split(/\s+/);
+    return `<div class="line">${words.map((w, wi) => {
+      const hits = list.filter(x => x.line_index === i && x.word === w);
+      const cls = hits.length ? (hits.every(x => x.status === 'klar') ? 'w done' : 'w has') : 'w';
+      return `<span class="${cls}" data-line="${i}" data-word="${esc(w)}">${esc(w)}</span>`;
+    }).join(' ')}</div>`;
+  }).join('');
+  lyr.querySelectorAll('.w').forEach(s => s.onclick = () => openSheet(+s.dataset.line, s.dataset.word));
+  // list
+  const cl = document.getElementById('corrList');
+  cl.innerHTML = list.length ? list.map(x => `
+    <div class="corr ${x.status === 'klar' ? 'done' : ''}">
+      <div class="word">${esc(x.word)}</div>
+      <div class="det fa" style="text-align:right;color:#b0a090;font-size:15px">${esc(take.lyrics?.[x.line_index]?.text || '')}</div>
+      ${x.heard ? `<div class="det"><b>Hördes</b>${esc(x.heard)}</div>` : ''}
+      ${x.should_sound ? `<div class="det"><b>Ska låta</b>${esc(x.should_sound)}</div>` : ''}
+      ${x.note ? `<div class="det"><b>Notering</b>${esc(x.note)}</div>` : ''}
+      <div class="row">
+        ${x.time_sec != null ? `<button class="btn small" data-seek="${x.time_sec}">▶ ${fmtTime(x.time_sec)}</button>` : ''}
+        <button class="btn small" data-toggle="${x.id}" data-status="${x.status}">${x.status === 'klar' ? 'Öppna igen' : 'Markera klar'}</button>
+      </div>
+    </div>`).join('') : '<p class="help">Inga rättningar än.</p>';
+  cl.querySelectorAll('[data-seek]').forEach(b => b.onclick = () => { const a = document.getElementById('audio'); if (a) { a.currentTime = Math.max(0, +b.dataset.seek - 2); a.play(); window.scrollTo({ top:0, behavior:'smooth' }); } });
+  cl.querySelectorAll('[data-toggle]').forEach(b => b.onclick = async () => {
+    b.disabled = true;
+    await sb.from('corrections').update({ status: b.dataset.status === 'klar' ? 'ny' : 'klar' }).eq('id', b.dataset.toggle);
+    refreshCorrections();
+  });
+}
+
+/* ---------- Correction sheet ---------- */
+function openSheet(lineIndex, word) {
+  const a = document.getElementById('audio');
+  const t = a ? a.currentTime : null;
+  if (a) a.pause();
+  const line = state.take.lyrics[lineIndex]?.text || '';
+  sheetInner.innerHTML = `
+    <div class="eyebrow">Rätta ordet</div>
+    <div class="big">${esc(word)}</div>
+    <div class="ctx">${esc(line)}</div>
+    <label class="field"><span>Vad hördes?</span><input type="text" id="cHeard" placeholder="t.ex. tu / تو"></label>
+    <label class="field"><span>Hur ska det låta?</span><input type="text" id="cShould" placeholder="t.ex. to / طُ"></label>
+    <label class="field"><span>Notering (frivilligt)</span><input type="text" id="cNote"></label>
+    <label class="field"><span>Tid i ljudet</span><input type="text" id="cTime" value="${t != null ? fmtTime(t) : ''}" placeholder="m:ss"></label>
+    <div class="row" style="margin-top:6px">
+      <button class="btn" id="cSave" style="flex:1">Spara</button>
+      <button class="btn" id="cCancel" style="flex:1">Avbryt</button>
+    </div>
+    <div class="err" id="cErr"></div>`;
+  sheetBg.style.display = 'block'; requestAnimationFrame(() => sheet.classList.add('open'));
+  document.getElementById('cCancel').onclick = closeSheet;
+  document.getElementById('cSave').onclick = async () => {
+    const heard = document.getElementById('cHeard').value.trim(), should = document.getElementById('cShould').value.trim(), note = document.getElementById('cNote').value.trim();
+    if (!heard && !should && !note) { document.getElementById('cErr').textContent = 'Skriv vad som hördes eller hur det ska låta.'; return; }
+    const tm = document.getElementById('cTime').value.trim().match(/^(\d+):(\d{1,2})$/);
+    const btn = document.getElementById('cSave'); btn.disabled = true;
+    const { error } = await sb.from('corrections').insert({ take_id: state.take.id, line_index: lineIndex, word, heard: heard || null, should_sound: should || null, note: note || null, time_sec: tm ? (+tm[1] * 60 + +tm[2]) : (t != null ? Math.round(t * 10) / 10 : null) });
+    if (error) { btn.disabled = false; document.getElementById('cErr').textContent = 'Kunde inte spara. Försök igen.'; return; }
+    closeSheet(); refreshCorrections();
+  };
+}
+function closeSheet() { sheet.classList.remove('open'); setTimeout(() => sheetBg.style.display = 'none', 300); }
+sheetBg.onclick = closeSheet;
+
+/* ---------- New take ---------- */
+async function renderNew() {
+  try { await loadAll(); } catch (e) {}
+  app.innerHTML = `
+  <section class="fade" style="padding-top:28px">
+    <button class="linkbtn" id="backBtn">← Alla låtar</button>
+    <div class="eyebrow" style="margin-top:18px"><span class="dot"></span>Studio</div>
+    <h1 style="font-size:clamp(32px,8vw,46px)">Ny <em>tagning</em></h1>
+    <div class="rule"></div>
+    <label class="field"><span>Låt</span>
+      <select id="nSong"><option value="">+ Ny låt</option>${state.songs.map(s => `<option value="${s.id}">${esc(s.title)}</option>`).join('')}</select></label>
+    <label class="field" id="nTitleWrap"><span>Låtens titel</span><input type="text" id="nTitle" placeholder="t.ex. Vaght Nadaram (وقت ندارم) – &quot;No Time&quot;"></label>
+    <label class="field" id="nArtistWrap"><span>Artist</span><input type="text" id="nArtist" value="Mah-o-Dasht"></label>
+    <label class="field"><span>Namn på tagningen</span><input type="text" id="nLabel" placeholder="t.ex. A cappella-test 1"></label>
+    <label class="field"><span>Typ</span><select id="nKind"><option value="acappella">A cappella</option><option value="full">Hela låten</option></select></label>
+    <label class="field"><span>Ljudfil (mp3)</span><input type="file" id="nFile" accept="audio/*"></label>
+    <label class="field"><span>Låttext (klistra in från Suno)</span><textarea id="nLyrics" class="fa" style="min-height:220px"></textarea></label>
+    <button class="btn full" id="nSave">Ladda upp</button>
+    <div class="err" id="nErr"></div>
+  </section>`;
+  document.getElementById('backBtn').onclick = () => go('');
+  const sel = document.getElementById('nSong');
+  const toggle = () => { const isNew = !sel.value; document.getElementById('nTitleWrap').classList.toggle('hidden', !isNew); document.getElementById('nArtistWrap').classList.toggle('hidden', !isNew); };
+  sel.onchange = toggle; toggle();
+  document.getElementById('nSave').onclick = async () => {
+    const err = document.getElementById('nErr'), btn = document.getElementById('nSave'); err.textContent = '';
+    const label = document.getElementById('nLabel').value.trim(), file = document.getElementById('nFile').files[0], lyrics = parseLyrics(document.getElementById('nLyrics').value);
+    if (!sel.value && !document.getElementById('nTitle').value.trim()) return err.textContent = 'Skriv låtens titel.';
+    if (!label) return err.textContent = 'Skriv ett namn på tagningen.';
+    if (!file) return err.textContent = 'Välj en ljudfil.';
+    if (!lyrics.length) return err.textContent = 'Klistra in låttexten.';
+    btn.disabled = true; btn.textContent = 'Laddar upp…';
+    try {
+      let songId = sel.value;
+      if (!songId) {
+        const s = await sb.from('songs').insert({ title: document.getElementById('nTitle').value.trim(), artist: document.getElementById('nArtist').value.trim() || 'Mah-o-Dasht' }).select().single();
+        if (s.error) throw s.error; songId = s.data.id;
+      }
+      const ext = (file.name.split('.').pop() || 'mp3').toLowerCase().replace(/[^a-z0-9]/g, '');
+      const path = `${songId}/${Date.now()}.${ext}`;
+      const up = await sb.storage.from('audio').upload(path, file, { contentType: file.type || 'audio/mpeg' });
+      if (up.error) throw up.error;
+      const t = await sb.from('takes').insert({ song_id: songId, label, kind: document.getElementById('nKind').value, audio_path: path, lyrics }).select().single();
+      if (t.error) throw t.error;
+      go('take/' + t.data.id);
+    } catch (e) {
+      btn.disabled = false; btn.textContent = 'Ladda upp';
+      err.textContent = 'Uppladdningen misslyckades' + (e?.message?.includes('size') ? ': filen är för stor (max 50 MB).' : '. Försök igen.');
+    }
+  };
+}
+
+sb.auth.onAuthStateChange(ev => { if (ev === 'SIGNED_OUT') route(); });
+route();
+</script>
+</body>
+</html>
