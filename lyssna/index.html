@@ -79,6 +79,10 @@
   .sheet .big { font-family:'Vazirmatn',sans-serif;font-size:30px;color:var(--gold);direction:rtl;text-align:center;margin:6px 0 2px; }
   .sheet .ctx { font-family:'Vazirmatn',sans-serif;direction:rtl;text-align:center;color:#b0a090;font-size:16px;margin-bottom:18px; }
 
+  .btn.danger { color:var(--red);border-color:rgba(224,112,42,.5); }
+  .btn.danger:hover { border-color:var(--red);box-shadow:0 8px 32px rgba(224,112,42,.2); }
+  .warn { border:1px solid var(--red);background:rgba(224,112,42,.08);padding:16px;margin:10px 0 18px;color:var(--dust);font-size:17px; }
+  .warn strong { display:block;font-family:'Cormorant Garamond',serif;letter-spacing:.3em;text-transform:uppercase;color:var(--red);font-size:14px;margin-bottom:6px; }
   .hidden { display:none !important; }
   .fade { animation:fadeUp .6s cubic-bezier(0.16,1,0.3,1); }
   @keyframes fadeUp { from{opacity:0;transform:translateY(24px)} to{opacity:1;transform:translateY(0)} }
@@ -233,8 +237,11 @@ async function renderTake(id) {
     <div class="rule"></div>
     <div class="eyebrow">Rättningar</div>
     <div id="corrList" style="margin-top:16px"></div>
+    <div class="rule"></div>
+    <button class="btn danger full" id="delTake">Radera tagningen</button>
   </section>`;
   document.getElementById('backBtn').onclick = () => go('');
+  document.getElementById('delTake').onclick = openDeleteSheet;
   const au = document.getElementById('audio');
   if (au) {
     const pb = document.getElementById('playBtn');
@@ -313,6 +320,34 @@ function openSheet(lineIndex, word) {
     const { error } = await sb.from('corrections').insert({ take_id: state.take.id, line_index: lineIndex, word, heard: heard || null, should_sound: should || null, note: note || null, time_sec: tm ? (+tm[1] * 60 + +tm[2]) : (t != null ? Math.round(t * 10) / 10 : null) });
     if (error) { btn.disabled = false; document.getElementById('cErr').textContent = 'Kunde inte spara. Försök igen.'; return; }
     closeSheet(); refreshCorrections();
+  };
+}
+function openDeleteSheet() {
+  const a = document.getElementById('audio'); if (a) a.pause();
+  const take = state.take;
+  sheetInner.innerHTML = `
+    <div class="eyebrow" style="color:var(--red)">Radera</div>
+    <div class="warn"><strong>⚠ Varning</strong>
+      Tagningen <b>${esc(take.label)}</b> (${esc(take.songs?.title)}) raderas för alltid: ljudfilen, texten och alla rättningar. Det går inte att ångra.</div>
+    <div class="row">
+      <button class="btn danger" id="dYes" style="flex:1;white-space:nowrap">Radera</button>
+      <button class="btn" id="dNo" style="flex:1">Avbryt</button>
+    </div>
+    <div class="err" id="dErr"></div>`;
+  sheetBg.style.display = 'block'; requestAnimationFrame(() => sheet.classList.add('open'));
+  document.getElementById('dNo').onclick = closeSheet;
+  document.getElementById('dYes').onclick = async () => {
+    const btn = document.getElementById('dYes'); btn.disabled = true; btn.textContent = 'Raderar…';
+    try {
+      if (take.audio_path) { const rm = await sb.storage.from('audio').remove([take.audio_path]); if (rm.error) throw rm.error; }
+      const d = await sb.from('takes').delete().eq('id', take.id); if (d.error) throw d.error;
+      const left = await sb.from('takes').select('id', { count:'exact', head:true }).eq('song_id', take.song_id);
+      if (!left.error && left.count === 0) await sb.from('songs').delete().eq('id', take.song_id);
+      closeSheet(); go('');
+    } catch (e) {
+      btn.disabled = false; btn.textContent = 'Radera';
+      document.getElementById('dErr').textContent = 'Kunde inte radera. Försök igen.';
+    }
   };
 }
 function closeSheet() { sheet.classList.remove('open'); setTimeout(() => sheetBg.style.display = 'none', 300); }
