@@ -80,6 +80,14 @@
   .item .card-meta { margin-top:2px; }
   .item.on .card-title { color:var(--gold); }
   .box { border:1px solid var(--mid);padding:16px;margin-top:12px; }
+  .grid { display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:14px;margin-top:18px; }
+  .vcard { background:none;border:none;padding:0;text-align:left;cursor:pointer;color:inherit;font:inherit;display:flex;flex-direction:column;justify-content:flex-start; }
+  a.btn { text-decoration:none; }
+  .thumb { position:relative;aspect-ratio:16/9;background:#100c07 center/cover no-repeat;border:1px solid rgba(200,168,130,0.15);transition:border-color .3s; }
+  .vcard:hover .thumb { border-color:rgba(200,168,130,0.5); }
+  .thumb .len { position:absolute;right:6px;bottom:6px;background:rgba(8,6,4,0.85);color:var(--dust);font-size:13px;padding:1px 6px; }
+  .vcard .card-title { font-size:16px;margin-top:6px; }
+  .vplayer { width:100%;max-height:70vh;background:#000;display:block;margin:18px 0 10px; }
 
   .corr { border-left:1px solid var(--brown);padding:10px 0 10px 14px;margin-bottom:14px; }
   .corr .word { font-family:'Vazirmatn',sans-serif;font-size:20px;color:var(--dust); }
@@ -130,7 +138,7 @@ const sb = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 const app = document.getElementById('app');
 const logoutBtn = document.getElementById('logoutBtn');
 const sheet = document.getElementById('sheet'), sheetBg = document.getElementById('sheetBg'), sheetInner = document.getElementById('sheetInner');
-let state = { songs: [], takes: [], corrections: [], song: null, songTakes: [], list: [], takeId: null, urls: {}, showOrig: false, view: 'fa' };
+let state = { songs: [], takes: [], corrections: [], videos: [], vtab: 'short', song: null, songTakes: [], list: [], takeId: null, urls: {}, showOrig: false, view: 'fa' };
 try { state.view = localStorage.getItem('lyssnaView') || 'fa'; } catch (e) {}
 
 const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
@@ -161,6 +169,9 @@ async function route() {
     if (!t.error) { state.takeId = t.data.id; return go('song/' + t.data.song_id); }
   }
   if (h === 'ny') return renderNew();
+  if (h === 'video/ny') return renderVideoNew();
+  if (h.startsWith('video/')) return renderVideo(h.slice(6));
+  if (h === 'video') return renderVideos();
   return renderList();
 }
 
@@ -202,7 +213,18 @@ async function loadAll() {
   ]);
   if (s.error || t.error || c.error) throw (s.error || t.error || c.error);
   state.songs = s.data; state.takes = t.data; state.corrections = c.data;
+  await loadVideos();
 }
+async function loadVideos() {
+  const v = await sb.from('videos').select('*').order('created_at', { ascending:false });
+  state.videos = v.error ? [] : v.data;
+}
+const sectionNav = cur => `
+  <div class="tabs" style="margin:0 0 6px">
+    <button class="tab ${cur === 'songs' ? 'on' : ''}" data-nav="">Låtar</button>
+    <button class="tab ${cur === 'video' ? 'on' : ''}" data-nav="video">Videoklipp</button>
+  </div>`;
+const bindNav = () => app.querySelectorAll('[data-nav]').forEach(b => b.onclick = () => go(b.dataset.nav));
 
 async function uploadAudio(songId, file, label, kind) {
   const ext = (file.name.split('.').pop() || 'mp3').toLowerCase().replace(/[^a-z0-9]/g, '');
@@ -230,13 +252,15 @@ async function renderList() {
           <span class="chip ${song.lyrics?.length ? 'yes' : ''}">Text ${song.lyrics?.length ? 'finns' : 'saknas'}</span>
           <span class="chip ${song.lyrics_sv?.length ? 'yes' : ''}">Svenska ${song.lyrics_sv?.length ? 'finns' : 'saknas'}</span>
           <span class="chip ${nTakes ? 'yes' : ''}">${nTakes ? (nTakes === 1 ? '1 ljudfil' : nTakes + ' ljudfiler') : 'Ljud saknas'}</span>
+          ${state.videos.some(v => same(v.song_id, song.id)) ? '<span class="chip yes">Video finns</span>' : ''}
           ${open ? `<span class="chip" style="color:var(--red);border-color:rgba(224,112,42,.5)">${open} att rätta</span>` : ''}
         </div>
       </button>`;
   }).join('');
   app.innerHTML = `
-  <section class="fade" style="padding-top:40px">
-    <div class="eyebrow"><span class="dot"></span>Studio</div>
+  <section class="fade" style="padding-top:24px">
+    ${sectionNav('songs')}
+    <div class="eyebrow" style="margin-top:22px"><span class="dot"></span>Studio</div>
     <h1>Låtar</h1>
     <p class="sub">Tryck på en låt för att lyssna och rätta</p>
     <div class="rule"></div>
@@ -244,6 +268,7 @@ async function renderList() {
     <div class="rule"></div>
     <button class="btn full" id="newBtn">+ Ny låt</button>
   </section>`;
+  bindNav();
   app.querySelectorAll('[data-song]').forEach(b => b.onclick = () => go('song/' + b.dataset.song));
   $('newBtn').onclick = () => go('ny');
 }
@@ -251,14 +276,16 @@ async function renderList() {
 /* ---------- Song view ---------- */
 async function renderSong(id) {
   app.innerHTML = `<p class="help" style="padding-top:40px">Hämtar…</p>`;
-  const [s, t, c] = await Promise.all([
+  const [s, t, c, v] = await Promise.all([
     sb.from('songs').select('*').eq('id', id).single(),
     sb.from('takes').select('id,song_id,label,kind,audio_path,created_at').eq('song_id', id).order('created_at', { ascending:false }),
-    sb.from('corrections').select('*').eq('song_id', id).order('created_at')
+    sb.from('corrections').select('*').eq('song_id', id).order('created_at'),
+    sb.from('videos').select('id,title,duration_sec').eq('song_id', id).order('created_at', { ascending:false })
   ]);
   if (s.error) { app.innerHTML = `<p class="err" style="padding-top:40px">Låten hittades inte.</p>`; return; }
   if (!same(state.song?.id, id)) state.showOrig = false;
   state.song = s.data; state.songTakes = t.data || []; state.list = c.data || [];
+  const songVideos = v.error ? [] : v.data;
   if (!state.songTakes.some(x => same(x.id, state.takeId))) state.takeId = state.songTakes[0]?.id || null;
   const song = state.song, hasFa = !!song.lyrics?.length;
 
@@ -314,11 +341,21 @@ async function renderSong(id) {
         <div class="err" id="tErr"></div>
       </div>`}
 
+    <div class="sub-h">Videoklipp</div>
+    ${songVideos.length ? songVideos.map(x => `
+      <div class="item">
+        <div><div class="card-title" style="font-size:18px">${esc(x.title)}</div><div class="card-meta">${fmtTime(x.duration_sec)}</div></div>
+        <button class="btn small" data-video="${x.id}">▶ Titta</button>
+      </div>`).join('') : '<p class="help">Inget videoklipp kopplat till låten.</p>'}
+    <button class="btn full" id="addVideoBtn" style="margin-top:12px">+ Lägg till video</button>
+
     <div class="rule"></div>
     <button class="btn danger full" id="delSong">Radera hela låten</button>
   </section>`;
 
   $('backBtn').onclick = () => go('');
+  app.querySelectorAll('[data-video]').forEach(b => b.onclick = () => go('video/' + b.dataset.video));
+  $('addVideoBtn').onclick = () => { state.newVideoSong = song.id; go('video/ny'); };
   app.querySelectorAll('[data-view]').forEach(b => b.onclick = () => {
     state.view = b.dataset.view; try { localStorage.setItem('lyssnaView', state.view); } catch (e) {}
     renderText();
@@ -568,7 +605,7 @@ function bindManage() {
     if (song.lyrics_sv?.length) parts.push('den svenska översättningen');
     if (state.list.length) parts.push(`${state.list.length} ändring${state.list.length === 1 ? '' : 'ar'}`);
     if (state.songTakes.length) parts.push(`${state.songTakes.length} ljudfil${state.songTakes.length === 1 ? '' : 'er'}`);
-    confirmDelete(`Hela låten <b>${esc(song.title)}</b> raderas för alltid${parts.length ? ': ' + parts.join(', ') : ''}.`, async () => {
+    confirmDelete(`Hela låten <b>${esc(song.title)}</b> raderas för alltid${parts.length ? ': ' + parts.join(', ') : ''}. Videoklippen finns kvar under Videoklipp.`, async () => {
       const paths = state.songTakes.map(t => t.audio_path).filter(Boolean);
       if (paths.length) { const rm = await sb.storage.from('audio').remove(paths); if (rm.error) throw rm.error; }
       for (const [tbl, col] of [['corrections', 'song_id'], ['takes', 'song_id'], ['songs', 'id']]) {
@@ -601,6 +638,156 @@ function confirmDelete(html, action) {
 }
 function closeSheet() { sheet.classList.remove('open'); setTimeout(() => sheetBg.style.display = 'none', 300); }
 sheetBg.onclick = closeSheet;
+
+/* ---------- Videos ---------- */
+const SHORT_SEC = 60;
+const MAX_VIDEO_MB = 50;
+const fmtMB = b => (b / 1048576).toFixed(b < 10485760 ? 1 : 0) + ' MB';
+
+async function signedUrls(paths) {
+  const list = paths.filter(Boolean);
+  if (!list.length) return {};
+  const r = await sb.storage.from('video').createSignedUrls(list, 60 * 60 * 6);
+  return Object.fromEntries((r.data || []).filter(x => x.signedUrl).map(x => [x.path, x.signedUrl]));
+}
+
+async function renderVideos() {
+  app.innerHTML = `<p class="help" style="padding-top:40px">Hämtar…</p>`;
+  await Promise.all([loadVideos(), sb.from('songs').select('id,title').then(r => { if (!r.error) state.songs = r.data; })]);
+  const vids = state.videos.filter(v => state.vtab === 'all' || (state.vtab === 'short') === (+v.duration_sec < SHORT_SEC));
+  const thumbs = await signedUrls(vids.map(v => v.thumb_path));
+  const used = state.videos.reduce((n, v) => n + (+v.size_bytes || 0), 0);
+  const songTitle = id => state.songs.find(s => same(s.id, id))?.title;
+  app.innerHTML = `
+  <section class="fade" style="padding-top:24px">
+    ${sectionNav('video')}
+    <div class="eyebrow" style="margin-top:22px"><span class="dot"></span>Studio</div>
+    <h1>Video<em>klipp</em></h1>
+    <p class="sub">Tryck på ett klipp för att titta</p>
+    <div class="tabs">
+      <button class="tab" data-vtab="short">Korta</button>
+      <button class="tab" data-vtab="long">Långa</button>
+      <button class="tab" data-vtab="all">Alla</button>
+    </div>
+    ${vids.length ? `<div class="grid">${vids.map(v => `
+      <button class="vcard" data-vid="${v.id}">
+        <div class="thumb" style="${thumbs[v.thumb_path] ? `background-image:url('${esc(thumbs[v.thumb_path])}')` : ''}"><span class="len">${fmtTime(v.duration_sec)}</span></div>
+        <div class="card-title">${esc(v.title)}</div>
+        ${songTitle(v.song_id) ? `<div class="card-meta" style="font-size:12px">${esc(songTitle(v.song_id))}</div>` : ''}
+      </button>`).join('')}</div>`
+    : `<p class="help" style="margin-top:18px">Inga ${state.vtab === 'short' ? 'korta ' : state.vtab === 'long' ? 'långa ' : ''}videoklipp än.</p>`}
+    <div class="rule"></div>
+    <button class="btn full" id="newVideoBtn">+ Lägg till video</button>
+    <p class="help" style="text-align:center;margin-top:10px;font-size:14px">Videolagring: ${fmtMB(used)} av ca 1 000 MB</p>
+  </section>`;
+  bindNav();
+  app.querySelectorAll('[data-vtab]').forEach(b => { b.classList.toggle('on', b.dataset.vtab === state.vtab); b.onclick = () => { state.vtab = b.dataset.vtab; renderVideos(); }; });
+  app.querySelectorAll('[data-vid]').forEach(b => b.onclick = () => go('video/' + b.dataset.vid));
+  $('newVideoBtn').onclick = () => { state.newVideoSong = null; go('video/ny'); };
+}
+
+async function renderVideo(id) {
+  app.innerHTML = `<p class="help" style="padding-top:40px">Hämtar…</p>`;
+  const r = await sb.from('videos').select('*, songs(id,title)').eq('id', id).single();
+  if (r.error) { app.innerHTML = `<p class="err" style="padding-top:40px">Videoklippet hittades inte.</p>`; return; }
+  const v = r.data;
+  const fname = v.title.replace(/[\\/:*?"<>|]+/g, '').trim() + '.' + (v.path.split('.').pop() || 'mp4');
+  const [play, dl] = await Promise.all([
+    sb.storage.from('video').createSignedUrl(v.path, 60 * 60 * 6),
+    sb.storage.from('video').createSignedUrl(v.path, 60 * 60 * 6, { download: fname })
+  ]);
+  app.innerHTML = `
+  <section class="fade" style="padding-top:28px">
+    <button class="linkbtn" id="backBtn">← Alla videoklipp</button>
+    <div class="eyebrow" style="margin-top:18px"><span class="dot"></span>${fmtTime(v.duration_sec)}${v.songs ? ' · ' + esc(v.songs.title) : ''}</div>
+    <h1 style="font-size:clamp(28px,7vw,40px)">${esc(v.title)}</h1>
+    ${play.error ? '<p class="err">Videon kunde inte hämtas.</p>' : `<video class="vplayer" controls playsinline preload="metadata" src="${esc(play.data.signedUrl)}"></video>`}
+    ${dl.error ? '' : `<a class="btn full" href="${esc(dl.data.signedUrl)}" download="${esc(fname)}">⬇ Ladda ner</a>`}
+    ${v.songs ? `<p style="margin-top:16px;text-align:center"><button class="linkbtn" id="toSong">Till låten: ${esc(v.songs.title)} →</button></p>` : ''}
+    <div class="rule"></div>
+    <button class="btn danger full" id="delVideo">Ta bort videoklippet</button>
+  </section>`;
+  $('backBtn').onclick = () => go('video');
+  if (v.songs) $('toSong').onclick = () => go('song/' + v.songs.id);
+  $('delVideo').onclick = () => confirmDelete(`Videoklippet <b>${esc(v.title)}</b> raderas för alltid.`, async () => {
+    const rm = await sb.storage.from('video').remove([v.path, v.thumb_path].filter(Boolean)); if (rm.error) throw rm.error;
+    const d = await sb.from('videos').delete().eq('id', v.id); if (d.error) throw d.error;
+    go('video');
+  });
+}
+
+// Läser längd och tar en miniatyrbild ur videon direkt i webbläsaren.
+function probeVideo(file) {
+  return new Promise(resolve => {
+    const v = document.createElement('video'), url = URL.createObjectURL(file);
+    let done = false;
+    const finish = r => { if (done) return; done = true; URL.revokeObjectURL(url); resolve(r); };
+    setTimeout(() => finish({ duration: isFinite(v.duration) ? v.duration : null, thumb: null }), 15000);
+    v.muted = true; v.playsInline = true; v.preload = 'auto';
+    v.onloadedmetadata = () => { v.currentTime = Math.min(1, (v.duration || 0) / 10); };
+    v.onseeked = () => {
+      const c = document.createElement('canvas');
+      c.width = 480; c.height = Math.round(480 * (v.videoHeight || 270) / (v.videoWidth || 480));
+      try { c.getContext('2d').drawImage(v, 0, 0, c.width, c.height); }
+      catch (e) { return finish({ duration: v.duration, thumb: null }); }
+      c.toBlob(b => finish({ duration: v.duration, thumb: b }), 'image/jpeg', 0.8);
+    };
+    v.onerror = () => finish({ duration: null, thumb: null });
+    v.src = url;
+  });
+}
+
+async function renderVideoNew() {
+  if (!state.songs.length) { const r = await sb.from('songs').select('id,title'); if (!r.error) state.songs = r.data; }
+  app.innerHTML = `
+  <section class="fade" style="padding-top:28px">
+    <button class="linkbtn" id="backBtn">← Tillbaka</button>
+    <div class="eyebrow" style="margin-top:18px"><span class="dot"></span>Videoklipp</div>
+    <h1 style="font-size:clamp(32px,8vw,46px)">Ny <em>video</em></h1>
+    <p class="help">Max ${MAX_VIDEO_MB} MB. Är filen större: dra den på <i>Krymp video för Lyssna</i> på skrivbordet och ladda upp filen som slutar på <i>_lyssna.mp4</i>.</p>
+    <div class="rule"></div>
+    <label class="field"><span>Videofil</span><input type="file" id="vFile" accept="video/*"></label>
+    <div class="help" id="vInfo"></div>
+    <label class="field" style="margin-top:14px"><span>Titel</span><input type="text" id="vTitle"></label>
+    <label class="field"><span>Hör till låt (frivilligt)</span>
+      <select id="vSong"><option value="">Ingen låt</option>${state.songs.map(s => `<option value="${s.id}" ${same(s.id, state.newVideoSong) ? 'selected' : ''}>${esc(s.title)}</option>`).join('')}</select></label>
+    <button class="btn full" id="vSave">Ladda upp</button>
+    <div class="err" id="vErr"></div>
+  </section>`;
+  $('backBtn').onclick = () => history.back();
+  const fileIn = $('vFile');
+  fileIn.onchange = () => {
+    const f = fileIn.files[0]; $('vErr').textContent = '';
+    if (!f) return $('vInfo').textContent = '';
+    if (!$('vTitle').value) $('vTitle').value = f.name.replace(/\.[^.]+$/, '').replace(/_lyssna$/, '');
+    $('vInfo').textContent = fmtMB(f.size);
+    if (f.size > MAX_VIDEO_MB * 1048576) $('vErr').textContent = `Filen är ${fmtMB(f.size)}, max ${MAX_VIDEO_MB} MB. Krymp den först med "Krymp video för Lyssna" på skrivbordet.`;
+  };
+  $('vSave').onclick = async () => {
+    const err = $('vErr'), btn = $('vSave'), f = fileIn.files[0], title = $('vTitle').value.trim();
+    if (!f) return err.textContent = 'Välj en videofil.';
+    if (f.size > MAX_VIDEO_MB * 1048576) return err.textContent = `Filen är för stor (${fmtMB(f.size)}). Krymp den först.`;
+    if (!title) return err.textContent = 'Skriv en titel.';
+    btn.disabled = true; btn.textContent = 'Förbereder…'; err.textContent = '';
+    const { duration, thumb } = await probeVideo(f);
+    const base = `${Date.now()}`, ext = (f.name.split('.').pop() || 'mp4').toLowerCase().replace(/[^a-z0-9]/g, '');
+    const path = `${base}.${ext}`, thumbPath = thumb ? `${base}.jpg` : null;
+    btn.textContent = 'Laddar upp… (kan ta en stund)';
+    try {
+      const up = await sb.storage.from('video').upload(path, f, { contentType: f.type || 'video/mp4' });
+      if (up.error) throw up.error;
+      if (thumb) { const ut = await sb.storage.from('video').upload(thumbPath, thumb, { contentType: 'image/jpeg' }); if (ut.error) throw ut.error; }
+      const ins = await sb.from('videos').insert({ title, path, thumb_path: thumbPath, duration_sec: duration ? Math.round(duration * 10) / 10 : null, size_bytes: f.size, song_id: $('vSong').value || null }).select().single();
+      if (ins.error) throw ins.error;
+      state.vtab = duration != null && duration < SHORT_SEC ? 'short' : 'long';
+      go('video/' + ins.data.id);
+    } catch (e) {
+      sb.storage.from('video').remove([path, thumbPath].filter(Boolean));
+      btn.disabled = false; btn.textContent = 'Ladda upp';
+      err.textContent = 'Uppladdningen misslyckades' + (e?.message?.includes('size') || e?.message?.includes('large') ? ': filen är för stor.' : '. Försök igen.');
+    }
+  };
+}
 
 /* ---------- New song ---------- */
 function renderNew() {
