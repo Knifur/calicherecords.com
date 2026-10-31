@@ -64,6 +64,22 @@
   .w:hover { color:var(--gold); }
   .w.has { color:var(--red);border-bottom-color:var(--red); }
   .w.done { color:var(--gold);border-bottom:1px dashed var(--gold-dim); }
+  .w.chg { color:#f0d9b5;background:rgba(200,168,130,0.12);border-bottom-color:var(--gold); }
+  .w.chg.open { border-bottom-color:var(--red); }
+  .sv { font-family:'EB Garamond',Georgia,serif;direction:ltr;text-align:left;font-size:19px;line-height:1.7;padding:2px 0; }
+  .sv-under { font-family:'EB Garamond',Georgia,serif;direction:ltr;text-align:left;font-style:italic;color:#b0a090;font-size:16px;line-height:1.5;margin:-2px 0 10px; }
+  .tabs { display:flex;border-bottom:1px solid var(--mid);margin:22px 0 6px; }
+  .tab { flex:1;background:none;border:none;border-bottom:2px solid transparent;color:#b0a090;font-family:'Cormorant Garamond',serif;letter-spacing:.2em;text-transform:uppercase;font-size:14px;padding:12px 0;cursor:pointer; }
+  .tab.on { color:var(--gold);border-bottom-color:var(--gold); }
+  .chips { display:flex;gap:8px;flex-wrap:wrap;margin-top:14px; }
+  .chip { font-family:'Cormorant Garamond',serif;font-size:13px;letter-spacing:.15em;text-transform:uppercase;border:1px solid var(--mid);padding:4px 10px;color:var(--gray); }
+  .chip.yes { color:var(--gold);border-color:rgba(200,168,130,.4); }
+  .notice { font-style:italic;color:var(--gold);font-size:15px;text-align:center;border:1px dashed var(--gold-dim);padding:6px;margin-top:10px; }
+  .sub-h { font-family:'Playfair Display',serif;font-size:19px;color:var(--dust);margin:22px 0 10px; }
+  .item { display:flex;justify-content:space-between;align-items:center;gap:10px;border-bottom:1px solid var(--mid);padding:10px 0; }
+  .item .card-meta { margin-top:2px; }
+  .item.on .card-title { color:var(--gold); }
+  .box { border:1px solid var(--mid);padding:16px;margin-top:12px; }
 
   .corr { border-left:1px solid var(--brown);padding:10px 0 10px 14px;margin-bottom:14px; }
   .corr .word { font-family:'Vazirmatn',sans-serif;font-size:20px;color:var(--dust); }
@@ -114,16 +130,21 @@ const sb = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 const app = document.getElementById('app');
 const logoutBtn = document.getElementById('logoutBtn');
 const sheet = document.getElementById('sheet'), sheetBg = document.getElementById('sheetBg'), sheetInner = document.getElementById('sheetInner');
-let state = { songs: [], takes: [], corrections: [], take: null, audioUrl: null };
+let state = { songs: [], takes: [], corrections: [], song: null, songTakes: [], list: [], takeId: null, urls: {}, showOrig: false, view: 'fa' };
+try { state.view = localStorage.getItem('lyssnaView') || 'fa'; } catch (e) {}
 
 const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const fmtTime = t => { if (t == null) return ''; t = Math.floor(t); return Math.floor(t/60) + ':' + String(t%60).padStart(2,'0'); };
 const kindName = k => k === 'full' ? 'Hela låten' : 'A cappella';
+const $ = id => document.getElementById(id);
+const same = (a, b) => a != null && b != null && String(a) === String(b);
 
 function parseLyrics(text) {
   return text.split(/\r?\n/).map(l => l.trim()).filter(l => l.length)
     .map(l => /^\[.*\]$/.test(l) ? { type:'tag', text:l.slice(1,-1) } : { type:'line', text:l });
 }
+const lyricsToText = arr => (arr || []).map(l => l.type === 'tag' ? `[${l.text}]` : l.text).join('\n');
+const lineCount = arr => (arr || []).filter(l => l.type === 'line').length;
 
 /* ---------- Routing ---------- */
 function go(hash) { location.hash = hash; }
@@ -134,7 +155,11 @@ async function route() {
   logoutBtn.classList.toggle('hidden', !session);
   if (!session) return renderLogin();
   const h = location.hash.replace(/^#/, '');
-  if (h.startsWith('take/')) return renderTake(h.slice(5));
+  if (h.startsWith('song/')) return renderSong(h.slice(5));
+  if (h.startsWith('take/')) {   // gamla länkar
+    const t = await sb.from('takes').select('id,song_id').eq('id', h.slice(5)).single();
+    if (!t.error) { state.takeId = t.data.id; return go('song/' + t.data.song_id); }
+  }
   if (h === 'ny') return renderNew();
   return renderList();
 }
@@ -145,7 +170,7 @@ function renderLogin() {
   <section class="fade" style="padding-top:56px">
     <div class="eyebrow"><span class="dot"></span>Studio</div>
     <h1>Lyssna <em>&amp; rätta</em></h1>
-    <p class="sub">A cappella-tagningar och texter</p>
+    <p class="sub">Texter och ljudfiler</p>
     <div class="rule"></div>
     <form id="loginForm">
       <label class="field hidden" id="emailField"><span>Användare</span>
@@ -157,11 +182,11 @@ function renderLogin() {
     </form>
     <p style="margin-top:20px;text-align:center"><button class="linkbtn" id="otherUser">Annan användare</button></p>
   </section>`;
-  document.getElementById('otherUser').onclick = () => { document.getElementById('emailField').classList.remove('hidden'); document.getElementById('otherUser').classList.add('hidden'); };
-  document.getElementById('loginForm').onsubmit = async e => {
+  $('otherUser').onclick = () => { $('emailField').classList.remove('hidden'); $('otherUser').classList.add('hidden'); };
+  $('loginForm').onsubmit = async e => {
     e.preventDefault();
-    const err = document.getElementById('loginErr'); err.textContent = '';
-    const { error } = await sb.auth.signInWithPassword({ email: document.getElementById('email').value.trim(), password: document.getElementById('pw').value });
+    const err = $('loginErr'); err.textContent = '';
+    const { error } = await sb.auth.signInWithPassword({ email: $('email').value.trim(), password: $('pw').value });
     if (error) { err.textContent = 'Fel lösenord. Försök igen.'; return; }
     route();
   };
@@ -173,136 +198,303 @@ async function loadAll() {
   const [s, t, c] = await Promise.all([
     sb.from('songs').select('*').order('created_at', { ascending:false }),
     sb.from('takes').select('id,song_id,label,kind,audio_path,created_at').order('created_at', { ascending:false }),
-    sb.from('corrections').select('id,take_id,status')
+    sb.from('corrections').select('id,song_id,status')
   ]);
   if (s.error || t.error || c.error) throw (s.error || t.error || c.error);
   state.songs = s.data; state.takes = t.data; state.corrections = c.data;
 }
 
+async function uploadAudio(songId, file, label, kind) {
+  const ext = (file.name.split('.').pop() || 'mp3').toLowerCase().replace(/[^a-z0-9]/g, '');
+  const path = `${songId}/${Date.now()}.${ext}`;
+  const up = await sb.storage.from('audio').upload(path, file, { contentType: file.type || 'audio/mpeg' });
+  if (up.error) throw up.error;
+  const t = await sb.from('takes').insert({ song_id: songId, label, kind, audio_path: path }).select().single();
+  if (t.error) { await sb.storage.from('audio').remove([path]); throw t.error; }
+  return t.data;
+}
+const uploadErr = e => 'Uppladdningen misslyckades' + (e?.message?.includes('size') ? ': filen är för stor (max 50 MB).' : '. Försök igen.');
+
 /* ---------- Song list ---------- */
 async function renderList() {
   app.innerHTML = `<p class="help" style="padding-top:40px">Hämtar…</p>`;
   try { await loadAll(); } catch (e) { app.innerHTML = `<p class="err" style="padding-top:40px">Kunde inte hämta låtarna.</p>`; return; }
-  const open = id => state.corrections.filter(c => c.take_id === id && c.status !== 'klar').length;
   const songsHtml = state.songs.map(song => {
-    const takes = state.takes.filter(t => t.song_id === song.id);
+    const nTakes = state.takes.filter(t => same(t.song_id, song.id)).length;
+    const open = state.corrections.filter(c => same(c.song_id, song.id) && c.status !== 'klar').length;
     return `
-      <div class="eyebrow" style="margin:34px 0 12px">${esc(song.artist)}</div>
-      <div class="card-title" style="margin-bottom:12px">${esc(song.title)}</div>
-      ${takes.map(t => { const n = open(t.id); return `
-        <button class="card" data-take="${t.id}">
-          <div class="card-title" style="font-size:18px">${esc(t.label)}</div>
-          <div class="card-meta">${kindName(t.kind)} · ${new Date(t.created_at).toLocaleDateString('sv-SE')}${n ? `<span class="badge">${n} att rätta</span>` : ''}</div>
-        </button>`; }).join('') || '<p class="help">Inga tagningar än.</p>'}`;
+      <button class="card" data-song="${song.id}">
+        <div class="card-meta" style="margin:0 0 4px">${esc(song.artist)}</div>
+        <div class="card-title">${esc(song.title)}</div>
+        <div class="chips">
+          <span class="chip ${song.lyrics?.length ? 'yes' : ''}">Text ${song.lyrics?.length ? 'finns' : 'saknas'}</span>
+          <span class="chip ${song.lyrics_sv?.length ? 'yes' : ''}">Svenska ${song.lyrics_sv?.length ? 'finns' : 'saknas'}</span>
+          <span class="chip ${nTakes ? 'yes' : ''}">${nTakes ? (nTakes === 1 ? '1 ljudfil' : nTakes + ' ljudfiler') : 'Ljud saknas'}</span>
+          ${open ? `<span class="chip" style="color:var(--red);border-color:rgba(224,112,42,.5)">${open} att rätta</span>` : ''}
+        </div>
+      </button>`;
   }).join('');
   app.innerHTML = `
   <section class="fade" style="padding-top:40px">
     <div class="eyebrow"><span class="dot"></span>Studio</div>
     <h1>Låtar</h1>
-    <p class="sub">Tryck på en tagning för att lyssna</p>
-    ${songsHtml || '<div class="rule"></div><p class="help">Inga låtar uppladdade än.</p>'}
+    <p class="sub">Tryck på en låt för att lyssna och rätta</p>
     <div class="rule"></div>
-    <button class="btn full" id="newBtn">+ Lägg till tagning</button>
+    ${songsHtml || '<p class="help">Inga låtar än.</p>'}
+    <div class="rule"></div>
+    <button class="btn full" id="newBtn">+ Ny låt</button>
   </section>`;
-  app.querySelectorAll('[data-take]').forEach(b => b.onclick = () => go('take/' + b.dataset.take));
-  document.getElementById('newBtn').onclick = () => go('ny');
+  app.querySelectorAll('[data-song]').forEach(b => b.onclick = () => go('song/' + b.dataset.song));
+  $('newBtn').onclick = () => go('ny');
 }
 
-/* ---------- Take view ---------- */
-async function renderTake(id) {
+/* ---------- Song view ---------- */
+async function renderSong(id) {
   app.innerHTML = `<p class="help" style="padding-top:40px">Hämtar…</p>`;
-  const t = await sb.from('takes').select('*, songs(title,artist)').eq('id', id).single();
-  if (t.error) { app.innerHTML = `<p class="err" style="padding-top:40px">Tagningen hittades inte.</p>`; return; }
-  state.take = t.data;
-  let audioUrl = '';
-  if (t.data.audio_path) {
-    const s = await sb.storage.from('audio').createSignedUrl(t.data.audio_path, 60 * 60 * 6);
-    if (!s.error) audioUrl = s.data.signedUrl;
-  }
+  const [s, t, c] = await Promise.all([
+    sb.from('songs').select('*').eq('id', id).single(),
+    sb.from('takes').select('id,song_id,label,kind,audio_path,created_at').eq('song_id', id).order('created_at', { ascending:false }),
+    sb.from('corrections').select('*').eq('song_id', id).order('created_at')
+  ]);
+  if (s.error) { app.innerHTML = `<p class="err" style="padding-top:40px">Låten hittades inte.</p>`; return; }
+  if (!same(state.song?.id, id)) state.showOrig = false;
+  state.song = s.data; state.songTakes = t.data || []; state.list = c.data || [];
+  if (!state.songTakes.some(x => same(x.id, state.takeId))) state.takeId = state.songTakes[0]?.id || null;
+  const song = state.song, hasFa = !!song.lyrics?.length;
+
   app.innerHTML = `
   <section class="fade" style="padding-top:28px">
     <button class="linkbtn" id="backBtn">← Alla låtar</button>
-    <div class="eyebrow" style="margin-top:18px"><span class="dot"></span>${esc(t.data.songs?.artist)} · ${kindName(t.data.kind)}</div>
-    <h1 style="font-size:clamp(32px,8vw,46px)">${esc(t.data.songs?.title)}</h1>
-    <p class="sub">${esc(t.data.label)}</p>
-    <div class="player">
-      ${audioUrl ? `<audio id="audio" controls preload="metadata" src="${esc(audioUrl)}"></audio>
-      <div class="ctrls">
-        <button class="btn" id="back15">⟲ 15 sek</button>
-        <button class="btn" id="playBtn">▶ Spela</button>
-      </div>` : '<p class="help">Ingen ljudfil.</p>'}
-      <p class="help">Tryck på ett ord som låter fel</p>
+    <div class="eyebrow" style="margin-top:18px"><span class="dot"></span>${esc(song.artist)}</div>
+    <h1 style="font-size:clamp(32px,8vw,46px)">${esc(song.title)}</h1>
+    <div class="player" id="player"></div>
+    ${hasFa || song.lyrics_sv?.length ? `
+      <div class="tabs">
+        <button class="tab" data-view="fa">Persiska</button>
+        <button class="tab" data-view="sv">Svenska</button>
+        <button class="tab" data-view="both">Båda</button>
+      </div>
+      <div class="row" id="toolbar" style="justify-content:space-between"></div>
+      <div id="origNotice"></div>
+      <div class="lyrics" id="lyrics"></div>
+      <div class="rule"></div>
+      <div class="eyebrow">Ändringar</div>
+      <div id="corrList" style="margin-top:16px"></div>`
+    : `<div class="rule"></div><p class="help">Ingen text än. Lägg till den under <i>Text</i> nedan.</p>`}
+    <div class="rule"></div>
+    <div class="eyebrow">Hantera låten</div>
+
+    <div class="sub-h">Ljudfiler</div>
+    <div id="takeList"></div>
+    <button class="btn full" id="addAudioBtn" style="margin-top:12px">+ Lägg till ljudfil</button>
+    <div class="box hidden" id="addAudioBox">
+      <label class="field"><span>Namn på ljudfilen</span><input type="text" id="aLabel" placeholder="t.ex. A cappella-test 2"></label>
+      <label class="field"><span>Typ</span><select id="aKind"><option value="acappella">A cappella</option><option value="full">Hela låten</option></select></label>
+      <label class="field"><span>Ljudfil (mp3)</span><input type="file" id="aFile" accept="audio/*"></label>
+      <div class="row"><button class="btn" id="aSave" style="flex:1">Ladda upp</button><button class="btn" id="aCancel" style="flex:1">Avbryt</button></div>
+      <div class="err" id="aErr"></div>
     </div>
-    <div class="lyrics" id="lyrics"></div>
+
+    <div class="sub-h">Text</div>
+    ${hasFa ? `
+      <div class="row">
+        <button class="btn" id="svEditBtn" style="flex:1">${song.lyrics_sv?.length ? 'Redigera svenska' : '+ Lägg till svenska'}</button>
+        <button class="btn danger" id="delTextBtn" style="flex:1">Ta bort texten</button>
+      </div>
+      <div class="box hidden" id="svBox">
+        <label class="field"><span>Svensk översättning (en rad per persisk rad)</span><textarea id="svText" style="min-height:220px">${esc(lyricsToText(song.lyrics_sv))}</textarea></label>
+        <div class="row"><button class="btn" id="svSave" style="flex:1">Spara</button><button class="btn" id="svCancel" style="flex:1">Avbryt</button></div>
+        <div class="err" id="svErr"></div>
+      </div>`
+    : `
+      <div class="box">
+        <label class="field"><span>Persisk text (klistra in från Suno)</span><textarea id="tFa" class="fa" style="min-height:200px"></textarea></label>
+        <label class="field"><span>Svensk översättning (frivilligt)</span><textarea id="tSv" style="min-height:160px"></textarea></label>
+        <button class="btn full" id="tSave">Spara texten</button>
+        <div class="err" id="tErr"></div>
+      </div>`}
+
     <div class="rule"></div>
-    <div class="eyebrow">Rättningar</div>
-    <div id="corrList" style="margin-top:16px"></div>
-    <div class="rule"></div>
-    <button class="btn danger full" id="delTake">Radera tagningen</button>
+    <button class="btn danger full" id="delSong">Radera hela låten</button>
   </section>`;
-  document.getElementById('backBtn').onclick = () => go('');
-  document.getElementById('delTake').onclick = openDeleteSheet;
-  const au = document.getElementById('audio');
-  if (au) {
-    const pb = document.getElementById('playBtn');
-    const sync = () => { pb.textContent = au.paused ? '▶ Spela' : '❚❚ Paus'; };
-    pb.onclick = () => au.paused ? au.play() : au.pause();
-    document.getElementById('back15').onclick = () => { au.currentTime = Math.max(0, au.currentTime - 15); };
-    au.addEventListener('play', sync); au.addEventListener('pause', sync);
-  }
-  await refreshCorrections();
+
+  $('backBtn').onclick = () => go('');
+  app.querySelectorAll('[data-view]').forEach(b => b.onclick = () => {
+    state.view = b.dataset.view; try { localStorage.setItem('lyssnaView', state.view); } catch (e) {}
+    renderText();
+  });
+  renderPlayer();
+  renderTakes();
+  if ($('lyrics')) renderText();
+  bindManage();
 }
 
-async function refreshCorrections() {
-  const take = state.take;
-  const c = await sb.from('corrections').select('*').eq('take_id', take.id).order('line_index').order('created_at');
-  const list = c.data || [];
-  // lyrics with marks
-  const lyr = document.getElementById('lyrics');
-  lyr.innerHTML = (take.lyrics || []).map((l, i) => {
-    if (l.type === 'tag') return `<div class="tag">${esc(l.text)}</div>`;
-    const words = l.text.split(/\s+/);
-    return `<div class="line">${words.map((w, wi) => {
-      const hits = list.filter(x => x.line_index === i && x.word === w);
-      const cls = hits.length ? (hits.every(x => x.status === 'klar') ? 'w done' : 'w has') : 'w';
-      return `<span class="${cls}" data-line="${i}" data-word="${esc(w)}">${esc(w)}</span>`;
-    }).join(' ')}</div>`;
-  }).join('');
-  lyr.querySelectorAll('.w').forEach(s => s.onclick = () => openSheet(+s.dataset.line, s.dataset.word));
-  // list
-  const cl = document.getElementById('corrList');
-  cl.innerHTML = list.length ? list.map(x => `
-    <div class="corr ${x.status === 'klar' ? 'done' : ''}">
-      <div class="word">${esc(x.word)}</div>
-      <div class="det fa" style="text-align:right;color:#b0a090;font-size:15px">${esc(take.lyrics?.[x.line_index]?.text || '')}</div>
-      ${x.heard ? `<div class="det"><b>Hördes</b>${esc(x.heard)}</div>` : ''}
-      ${x.should_sound ? `<div class="det"><b>Ska låta</b>${esc(x.should_sound)}</div>` : ''}
-      ${x.note ? `<div class="det"><b>Notering</b>${esc(x.note)}</div>` : ''}
-      <div class="row">
-        ${x.time_sec != null ? `<button class="btn small" data-seek="${x.time_sec}">▶ ${fmtTime(x.time_sec)}</button>` : ''}
-        <button class="btn small" data-toggle="${x.id}" data-status="${x.status}">${x.status === 'klar' ? 'Öppna igen' : 'Markera klar'}</button>
+async function audioUrl(take) {
+  if (!take?.audio_path) return '';
+  if (state.urls[take.id]) return state.urls[take.id];
+  const s = await sb.storage.from('audio').createSignedUrl(take.audio_path, 60 * 60 * 6);
+  return s.error ? '' : (state.urls[take.id] = s.data.signedUrl);
+}
+
+async function renderPlayer(seek) {
+  const box = $('player'), take = state.songTakes.find(x => same(x.id, state.takeId));
+  if (!take) { box.innerHTML = `<p class="help">Ingen ljudfil. Du kan ändå rätta i texten.</p>`; return; }
+  const url = await audioUrl(take);
+  box.innerHTML = `
+    ${state.songTakes.length > 1 ? `<select id="takeSel" style="margin-bottom:10px;font-size:16px;padding:8px 10px">${state.songTakes.map(t => `<option value="${t.id}" ${same(t.id, take.id) ? 'selected' : ''}>${esc(t.label)} · ${kindName(t.kind)}</option>`).join('')}</select>`
+      : `<div class="card-meta" style="margin:0 0 8px">${esc(take.label)} · ${kindName(take.kind)}</div>`}
+    ${url ? `<audio id="audio" controls preload="metadata" src="${esc(url)}"></audio>
+    <div class="ctrls">
+      <button class="btn" id="back15">⟲ 15 sek</button>
+      <button class="btn" id="playBtn">▶ Spela</button>
+    </div>` : '<p class="help">Ljudfilen kunde inte hämtas.</p>'}
+    <p class="help">Pausa och tryck på ett ord för att ändra det</p>`;
+  const sel = $('takeSel');
+  if (sel) sel.onchange = () => { state.takeId = sel.value; renderPlayer(); renderTakes(); };
+  const au = $('audio');
+  if (au) {
+    const pb = $('playBtn');
+    const sync = () => { pb.textContent = au.paused ? '▶ Spela' : '❚❚ Paus'; };
+    pb.onclick = () => au.paused ? au.play() : au.pause();
+    $('back15').onclick = () => { au.currentTime = Math.max(0, au.currentTime - 15); };
+    au.addEventListener('play', sync); au.addEventListener('pause', sync);
+    if (seek != null) au.addEventListener('loadedmetadata', () => { au.currentTime = Math.max(0, seek - 2); au.play(); }, { once:true });
+  }
+}
+
+function renderTakes() {
+  const box = $('takeList');
+  box.innerHTML = state.songTakes.length ? state.songTakes.map(t => `
+    <div class="item ${same(t.id, state.takeId) ? 'on' : ''}">
+      <div>
+        <div class="card-title" style="font-size:18px">${esc(t.label)}</div>
+        <div class="card-meta">${kindName(t.kind)} · ${new Date(t.created_at).toLocaleDateString('sv-SE')}</div>
       </div>
-    </div>`).join('') : '<p class="help">Inga rättningar än.</p>';
-  cl.querySelectorAll('[data-seek]').forEach(b => b.onclick = () => { const a = document.getElementById('audio'); if (a) { a.currentTime = Math.max(0, +b.dataset.seek - 2); a.play(); window.scrollTo({ top:0, behavior:'smooth' }); } });
-  cl.querySelectorAll('[data-toggle]').forEach(b => b.onclick = async () => {
-    b.disabled = true;
-    await sb.from('corrections').update({ status: b.dataset.status === 'klar' ? 'ny' : 'klar' }).eq('id', b.dataset.toggle);
-    refreshCorrections();
+      <div class="row" style="margin:0;flex-wrap:nowrap">
+        ${same(t.id, state.takeId) ? '' : `<button class="btn small" data-play="${t.id}">Spela</button>`}
+        <button class="btn small danger" data-deltake="${t.id}">Ta bort</button>
+      </div>
+    </div>`).join('') : '<p class="help">Ingen ljudfil än.</p>';
+  box.querySelectorAll('[data-play]').forEach(b => b.onclick = () => { state.takeId = b.dataset.play; renderPlayer(); renderTakes(); window.scrollTo({ top:0, behavior:'smooth' }); });
+  box.querySelectorAll('[data-deltake]').forEach(b => b.onclick = () => {
+    const t = state.songTakes.find(x => same(x.id, b.dataset.deltake));
+    confirmDelete(`Ljudfilen <b>${esc(t.label)}</b> raderas för alltid. Texten och ändringarna finns kvar.`, async () => {
+      if (t.audio_path) { const rm = await sb.storage.from('audio').remove([t.audio_path]); if (rm.error) throw rm.error; }
+      const d = await sb.from('takes').delete().eq('id', t.id); if (d.error) throw d.error;
+      delete state.urls[t.id];
+      renderSong(state.song.id);
+    });
   });
 }
 
-/* ---------- Correction sheet ---------- */
-function openSheet(lineIndex, word) {
-  const a = document.getElementById('audio');
+/* ---------- Text & edits ---------- */
+// Originalet i songs.lyrics ändras aldrig. Varje ändring är en rad i corrections; den senaste vinner.
+const editsFor = (i, wi, w) => state.list.filter(x => x.line_index === i && (x.word_index != null ? x.word_index === wi : x.word === w));
+function currentWord(i, wi, w) {
+  const e = editsFor(i, wi, w).filter(x => x.new_word);
+  return e.length ? e[e.length - 1].new_word : w;
+}
+const currentLine = i => (state.song.lyrics[i]?.text || '').split(/\s+/).map((w, wi) => currentWord(i, wi, w)).join(' ');
+function svLines() {
+  const sv = (state.song.lyrics_sv || []).filter(l => l.type === 'line');
+  let n = 0;
+  return (state.song.lyrics || []).map(l => l.type === 'line' ? (sv[n++]?.text || '') : '');
+}
+
+function renderText() {
+  const song = state.song, hasFa = !!song.lyrics?.length, hasSv = !!song.lyrics_sv?.length;
+  if (!hasFa && state.view !== 'sv') state.view = 'sv';
+  app.querySelectorAll('[data-view]').forEach(b => b.classList.toggle('on', b.dataset.view === state.view));
+  const last = state.list[state.list.length - 1];
+  $('toolbar').innerHTML = state.view === 'sv' || !hasFa ? '' : `
+    <button class="btn small" id="undoBtn" ${last ? '' : 'disabled'}>↶ Ångra senaste${last ? ` (${esc(last.new_word ? last.word + ' → ' + last.new_word : last.word)})` : ''}</button>
+    <button class="btn small" id="origBtn">${state.showOrig ? 'Visa ändrad text' : 'Visa original'}</button>`;
+  $('origNotice').innerHTML = state.showOrig && state.view !== 'sv' ? '<div class="notice">Du ser originalet, så som texten laddades upp</div>' : '';
+  const lyr = $('lyrics');
+
+  if (state.view === 'sv') {
+    lyr.innerHTML = hasSv
+      ? (hasFa && lineCount(song.lyrics) !== lineCount(song.lyrics_sv) ? `<p class="help">Obs: svenska har ${lineCount(song.lyrics_sv)} rader, persiska ${lineCount(song.lyrics)}.</p>` : '')
+        + song.lyrics_sv.map(l => l.type === 'tag' ? `<div class="tag">${esc(l.text)}</div>` : `<div class="sv">${esc(l.text)}</div>`).join('')
+      : '<p class="help">Ingen svensk översättning än. Lägg till den under <i>Text</i> nedan.</p>';
+  } else {
+    const sv = svLines();
+    lyr.innerHTML = song.lyrics.map((l, i) => {
+      if (l.type === 'tag') return `<div class="tag">${esc(l.text)}</div>`;
+      const words = l.text.split(/\s+/);
+      return `<div class="line">${words.map((w, wi) => {
+        const hits = editsFor(i, wi, w);
+        const changed = hits.some(x => x.new_word), open = hits.some(x => x.status !== 'klar');
+        const cls = state.showOrig ? 'w' : changed ? (open ? 'w chg open' : 'w chg') : hits.length ? (open ? 'w has' : 'w done') : 'w';
+        return `<span class="${cls}" data-line="${i}" data-wi="${wi}">${esc(state.showOrig ? w : currentWord(i, wi, w))}</span>`;
+      }).join(' ')}</div>${state.view === 'both' && sv[i] ? `<div class="sv-under">${esc(sv[i])}</div>` : ''}`;
+    }).join('');
+    lyr.querySelectorAll('.w').forEach(s => s.onclick = () => openSheet(+s.dataset.line, +s.dataset.wi));
+  }
+  const ub = $('undoBtn');
+  if (ub) ub.onclick = async () => {
+    ub.disabled = true;
+    const { error } = await sb.from('corrections').delete().eq('id', last.id);
+    if (error) { ub.disabled = false; return; }
+    refreshEdits();
+  };
+  const ob = $('origBtn');
+  if (ob) ob.onclick = () => { state.showOrig = !state.showOrig; renderText(); };
+  renderCorrList();
+}
+
+async function refreshEdits() {
+  const c = await sb.from('corrections').select('*').eq('song_id', state.song.id).order('created_at');
+  state.list = c.data || [];
+  renderText();
+}
+
+function renderCorrList() {
+  const cl = $('corrList'), lyrics = state.song.lyrics || [];
+  const items = [...state.list].sort((a, b) => a.line_index - b.line_index || a.created_at.localeCompare(b.created_at));
+  cl.innerHTML = items.length ? items.map(x => `
+    <div class="corr ${x.status === 'klar' ? 'done' : ''}">
+      <div class="word fa" style="text-align:right">${x.new_word ? `${esc(x.word)} ← <span style="color:var(--gold)">${esc(x.new_word)}</span>` : esc(x.word)}</div>
+      <div class="det fa" style="text-align:right;color:#b0a090;font-size:15px">${esc(lyrics[x.line_index]?.text || '')}</div>
+      ${x.heard ? `<div class="det"><b>Hördes</b>${esc(x.heard)}</div>` : ''}
+      ${x.should_sound ? `<div class="det"><b>Uttal</b>${esc(x.should_sound)}</div>` : ''}
+      ${x.note ? `<div class="det"><b>Notering</b>${esc(x.note)}</div>` : ''}
+      <div class="row">
+        ${x.time_sec != null ? `<button class="btn small" data-seek="${x.id}">▶ ${fmtTime(x.time_sec)}</button>` : ''}
+        <button class="btn small" data-toggle="${x.id}" data-status="${x.status}">${x.status === 'klar' ? 'Öppna igen' : 'Markera klar'}</button>
+      </div>
+    </div>`).join('') : '<p class="help">Inga ändringar än.</p>';
+  cl.querySelectorAll('[data-seek]').forEach(b => b.onclick = () => {
+    const x = state.list.find(e => same(e.id, b.dataset.seek));
+    window.scrollTo({ top:0, behavior:'smooth' });
+    if (x.take_id && !same(x.take_id, state.takeId) && state.songTakes.some(t => same(t.id, x.take_id))) {
+      state.takeId = x.take_id; renderTakes(); return renderPlayer(x.time_sec);
+    }
+    const a = $('audio'); if (a) { a.currentTime = Math.max(0, x.time_sec - 2); a.play(); }
+  });
+  cl.querySelectorAll('[data-toggle]').forEach(b => b.onclick = async () => {
+    b.disabled = true;
+    await sb.from('corrections').update({ status: b.dataset.status === 'klar' ? 'ny' : 'klar' }).eq('id', b.dataset.toggle);
+    refreshEdits();
+  });
+}
+
+/* ---------- Word sheet ---------- */
+function openSheet(lineIndex, wi) {
+  const a = $('audio');
   const t = a ? a.currentTime : null;
   if (a) a.pause();
-  const line = state.take.lyrics[lineIndex]?.text || '';
+  const orig = state.song.lyrics[lineIndex].text.split(/\s+/)[wi];
+  const cur = currentWord(lineIndex, wi, orig);
+  const sv = svLines()[lineIndex];
   sheetInner.innerHTML = `
-    <div class="eyebrow">Rätta ordet</div>
-    <div class="big">${esc(word)}</div>
-    <div class="ctx">${esc(line)}</div>
-    <label class="field"><span>Vad hördes?</span><input type="text" id="cHeard" placeholder="t.ex. tu / تو"></label>
-    <label class="field"><span>Hur ska det låta?</span><input type="text" id="cShould" placeholder="t.ex. to / طُ"></label>
+    <div class="eyebrow">Ändra ordet</div>
+    <div class="big">${esc(cur)}</div>
+    ${cur !== orig ? `<div class="ctx" style="margin-bottom:4px">Original: ${esc(orig)}</div>` : ''}
+    <div class="ctx">${esc(currentLine(lineIndex))}</div>
+    ${sv ? `<div class="sv-under" style="text-align:center;margin:-10px 0 18px">${esc(sv)}</div>` : ''}
+    <label class="field"><span>Ordet ska vara</span><input type="text" id="cNew" class="fa" value="${esc(cur)}"></label>
+    <label class="field"><span>Uttal: hur det ska låta</span><input type="text" id="cShould" placeholder="t.ex. to / طُ"></label>
     <label class="field"><span>Notering (frivilligt)</span><input type="text" id="cNote"></label>
     <label class="field"><span>Tid i ljudet</span><input type="text" id="cTime" value="${t != null ? fmtTime(t) : ''}" placeholder="m:ss"></label>
     <div class="row" style="margin-top:6px">
@@ -310,98 +502,142 @@ function openSheet(lineIndex, word) {
       <button class="btn" id="cCancel" style="flex:1">Avbryt</button>
     </div>
     <div class="err" id="cErr"></div>`;
-  sheetBg.style.display = 'block'; requestAnimationFrame(() => sheet.classList.add('open'));
-  document.getElementById('cCancel').onclick = closeSheet;
-  document.getElementById('cSave').onclick = async () => {
-    const heard = document.getElementById('cHeard').value.trim(), should = document.getElementById('cShould').value.trim(), note = document.getElementById('cNote').value.trim();
-    if (!heard && !should && !note) { document.getElementById('cErr').textContent = 'Skriv vad som hördes eller hur det ska låta.'; return; }
-    const tm = document.getElementById('cTime').value.trim().match(/^(\d+):(\d{1,2})$/);
-    const btn = document.getElementById('cSave'); btn.disabled = true;
-    const { error } = await sb.from('corrections').insert({ take_id: state.take.id, line_index: lineIndex, word, heard: heard || null, should_sound: should || null, note: note || null, time_sec: tm ? (+tm[1] * 60 + +tm[2]) : (t != null ? Math.round(t * 10) / 10 : null) });
-    if (error) { btn.disabled = false; document.getElementById('cErr').textContent = 'Kunde inte spara. Försök igen.'; return; }
-    closeSheet(); refreshCorrections();
+  openSheetUI();
+  $('cCancel').onclick = closeSheet;
+  $('cSave').onclick = async () => {
+    const nw = $('cNew').value.trim(), should = $('cShould').value.trim(), note = $('cNote').value.trim();
+    const changed = nw && nw !== cur;
+    if (!changed && !should && !note) { $('cErr').textContent = 'Ändra ordet, skriv uttalet eller en notering.'; return; }
+    const tm = $('cTime').value.trim().match(/^(\d+):(\d{1,2})$/);
+    const btn = $('cSave'); btn.disabled = true;
+    const { error } = await sb.from('corrections').insert({
+      song_id: state.song.id, take_id: state.takeId, line_index: lineIndex, word_index: wi, word: orig,
+      new_word: changed ? nw : (cur !== orig ? cur : null),
+      should_sound: should || null, note: note || null,
+      time_sec: tm ? (+tm[1] * 60 + +tm[2]) : (t != null ? Math.round(t * 10) / 10 : null)
+    });
+    if (error) { btn.disabled = false; $('cErr').textContent = 'Kunde inte spara. Försök igen.'; return; }
+    closeSheet(); refreshEdits();
   };
 }
-function openDeleteSheet() {
-  const a = document.getElementById('audio'); if (a) a.pause();
-  const take = state.take;
+
+/* ---------- Manage: audio, text, song ---------- */
+function bindManage() {
+  const song = state.song;
+  $('addAudioBtn').onclick = () => { $('addAudioBox').classList.remove('hidden'); $('addAudioBtn').classList.add('hidden'); };
+  $('aCancel').onclick = () => { $('addAudioBox').classList.add('hidden'); $('addAudioBtn').classList.remove('hidden'); };
+  $('aSave').onclick = async () => {
+    const err = $('aErr'), btn = $('aSave'), file = $('aFile').files[0];
+    if (!file) return err.textContent = 'Välj en ljudfil.';
+    btn.disabled = true; btn.textContent = 'Laddar upp…';
+    try {
+      const t = await uploadAudio(song.id, file, $('aLabel').value.trim() || file.name.replace(/\.[^.]+$/, ''), $('aKind').value);
+      state.takeId = t.id; renderSong(song.id);
+    } catch (e) { btn.disabled = false; btn.textContent = 'Ladda upp'; err.textContent = uploadErr(e); }
+  };
+
+  if (song.lyrics?.length) {
+    $('svEditBtn').onclick = () => { $('svBox').classList.remove('hidden'); $('svEditBtn').disabled = true; };
+    $('svCancel').onclick = () => { $('svBox').classList.add('hidden'); $('svEditBtn').disabled = false; };
+    $('svSave').onclick = async () => {
+      const sv = parseLyrics($('svText').value);
+      const { error } = await sb.from('songs').update({ lyrics_sv: sv.length ? sv : null }).eq('id', song.id);
+      if (error) return $('svErr').textContent = 'Kunde inte spara. Försök igen.';
+      renderSong(song.id);
+    };
+    $('delTextBtn').onclick = () => confirmDelete(
+      `Texten till <b>${esc(song.title)}</b> raderas: originalet, den svenska översättningen och ${state.list.length} ändring${state.list.length === 1 ? '' : 'ar'}. Ljudfilerna finns kvar.`,
+      async () => {
+        const d = await sb.from('corrections').delete().eq('song_id', song.id); if (d.error) throw d.error;
+        const u = await sb.from('songs').update({ lyrics: null, lyrics_sv: null }).eq('id', song.id); if (u.error) throw u.error;
+        renderSong(song.id);
+      });
+  } else {
+    $('tSave').onclick = async () => {
+      const fa = parseLyrics($('tFa').value), sv = parseLyrics($('tSv').value);
+      if (!fa.length) return $('tErr').textContent = 'Klistra in den persiska texten.';
+      const { error } = await sb.from('songs').update({ lyrics: fa, lyrics_sv: sv.length ? sv : null }).eq('id', song.id);
+      if (error) return $('tErr').textContent = 'Kunde inte spara. Försök igen.';
+      renderSong(song.id);
+    };
+  }
+
+  $('delSong').onclick = () => {
+    const parts = [];
+    if (song.lyrics?.length) parts.push('texten');
+    if (song.lyrics_sv?.length) parts.push('den svenska översättningen');
+    if (state.list.length) parts.push(`${state.list.length} ändring${state.list.length === 1 ? '' : 'ar'}`);
+    if (state.songTakes.length) parts.push(`${state.songTakes.length} ljudfil${state.songTakes.length === 1 ? '' : 'er'}`);
+    confirmDelete(`Hela låten <b>${esc(song.title)}</b> raderas för alltid${parts.length ? ': ' + parts.join(', ') : ''}.`, async () => {
+      const paths = state.songTakes.map(t => t.audio_path).filter(Boolean);
+      if (paths.length) { const rm = await sb.storage.from('audio').remove(paths); if (rm.error) throw rm.error; }
+      for (const [tbl, col] of [['corrections', 'song_id'], ['takes', 'song_id'], ['songs', 'id']]) {
+        const d = await sb.from(tbl).delete().eq(col, song.id); if (d.error) throw d.error;
+      }
+      go('');
+    });
+  };
+}
+
+/* ---------- Sheets ---------- */
+function openSheetUI() { sheetBg.style.display = 'block'; requestAnimationFrame(() => sheet.classList.add('open')); }
+function confirmDelete(html, action) {
+  const a = $('audio'); if (a) a.pause();
   sheetInner.innerHTML = `
     <div class="eyebrow" style="color:var(--red)">Radera</div>
-    <div class="warn"><strong>⚠ Varning</strong>
-      Tagningen <b>${esc(take.label)}</b> (${esc(take.songs?.title)}) raderas för alltid: ljudfilen, texten och alla rättningar. Det går inte att ångra.</div>
+    <div class="warn"><strong>⚠ Varning</strong>${html} Det går inte att ångra.</div>
     <div class="row">
       <button class="btn danger" id="dYes" style="flex:1;white-space:nowrap">Radera</button>
       <button class="btn" id="dNo" style="flex:1">Avbryt</button>
     </div>
     <div class="err" id="dErr"></div>`;
-  sheetBg.style.display = 'block'; requestAnimationFrame(() => sheet.classList.add('open'));
-  document.getElementById('dNo').onclick = closeSheet;
-  document.getElementById('dYes').onclick = async () => {
-    const btn = document.getElementById('dYes'); btn.disabled = true; btn.textContent = 'Raderar…';
-    try {
-      if (take.audio_path) { const rm = await sb.storage.from('audio').remove([take.audio_path]); if (rm.error) throw rm.error; }
-      const d = await sb.from('takes').delete().eq('id', take.id); if (d.error) throw d.error;
-      const left = await sb.from('takes').select('id', { count:'exact', head:true }).eq('song_id', take.song_id);
-      if (!left.error && left.count === 0) await sb.from('songs').delete().eq('id', take.song_id);
-      closeSheet(); go('');
-    } catch (e) {
-      btn.disabled = false; btn.textContent = 'Radera';
-      document.getElementById('dErr').textContent = 'Kunde inte radera. Försök igen.';
-    }
+  openSheetUI();
+  $('dNo').onclick = closeSheet;
+  $('dYes').onclick = async () => {
+    const btn = $('dYes'); btn.disabled = true; btn.textContent = 'Raderar…';
+    try { await action(); closeSheet(); }
+    catch (e) { btn.disabled = false; btn.textContent = 'Radera'; $('dErr').textContent = 'Kunde inte radera. Försök igen.'; }
   };
 }
 function closeSheet() { sheet.classList.remove('open'); setTimeout(() => sheetBg.style.display = 'none', 300); }
 sheetBg.onclick = closeSheet;
 
-/* ---------- New take ---------- */
-async function renderNew() {
-  try { await loadAll(); } catch (e) {}
+/* ---------- New song ---------- */
+function renderNew() {
   app.innerHTML = `
   <section class="fade" style="padding-top:28px">
     <button class="linkbtn" id="backBtn">← Alla låtar</button>
     <div class="eyebrow" style="margin-top:18px"><span class="dot"></span>Studio</div>
-    <h1 style="font-size:clamp(32px,8vw,46px)">Ny <em>tagning</em></h1>
+    <h1 style="font-size:clamp(32px,8vw,46px)">Ny <em>låt</em></h1>
+    <p class="help">Bara titeln krävs. Text och ljud kan läggas till nu eller senare.</p>
     <div class="rule"></div>
-    <label class="field"><span>Låt</span>
-      <select id="nSong"><option value="">+ Ny låt</option>${state.songs.map(s => `<option value="${s.id}">${esc(s.title)}</option>`).join('')}</select></label>
-    <label class="field" id="nTitleWrap"><span>Låtens titel</span><input type="text" id="nTitle" placeholder="t.ex. Vaght Nadaram (وقت ندارم) – &quot;No Time&quot;"></label>
-    <label class="field" id="nArtistWrap"><span>Artist</span><input type="text" id="nArtist" value="Mah-o-Dasht"></label>
-    <label class="field"><span>Namn på tagningen</span><input type="text" id="nLabel" placeholder="t.ex. A cappella-test 1"></label>
-    <label class="field"><span>Typ</span><select id="nKind"><option value="acappella">A cappella</option><option value="full">Hela låten</option></select></label>
+    <label class="field"><span>Låtens titel</span><input type="text" id="nTitle" placeholder="t.ex. Vaght Nadaram (وقت ندارم) – &quot;No Time&quot;"></label>
+    <label class="field"><span>Artist</span><input type="text" id="nArtist" value="Mah-o-Dasht"></label>
+    <label class="field"><span>Persisk text (klistra in från Suno)</span><textarea id="nLyrics" class="fa" style="min-height:200px"></textarea></label>
+    <label class="field"><span>Svensk översättning (en rad per persisk rad)</span><textarea id="nSv" style="min-height:160px"></textarea></label>
     <label class="field"><span>Ljudfil (mp3)</span><input type="file" id="nFile" accept="audio/*"></label>
-    <label class="field"><span>Låttext (klistra in från Suno)</span><textarea id="nLyrics" class="fa" style="min-height:220px"></textarea></label>
-    <button class="btn full" id="nSave">Ladda upp</button>
+    <div id="nAudioOpts" class="hidden">
+      <label class="field"><span>Namn på ljudfilen</span><input type="text" id="nLabel" placeholder="t.ex. A cappella-test 1"></label>
+      <label class="field"><span>Typ</span><select id="nKind"><option value="acappella">A cappella</option><option value="full">Hela låten</option></select></label>
+    </div>
+    <button class="btn full" id="nSave">Spara</button>
     <div class="err" id="nErr"></div>
   </section>`;
-  document.getElementById('backBtn').onclick = () => go('');
-  const sel = document.getElementById('nSong');
-  const toggle = () => { const isNew = !sel.value; document.getElementById('nTitleWrap').classList.toggle('hidden', !isNew); document.getElementById('nArtistWrap').classList.toggle('hidden', !isNew); };
-  sel.onchange = toggle; toggle();
-  document.getElementById('nSave').onclick = async () => {
-    const err = document.getElementById('nErr'), btn = document.getElementById('nSave'); err.textContent = '';
-    const label = document.getElementById('nLabel').value.trim(), file = document.getElementById('nFile').files[0], lyrics = parseLyrics(document.getElementById('nLyrics').value);
-    if (!sel.value && !document.getElementById('nTitle').value.trim()) return err.textContent = 'Skriv låtens titel.';
-    if (!label) return err.textContent = 'Skriv ett namn på tagningen.';
-    if (!file) return err.textContent = 'Välj en ljudfil.';
-    if (!lyrics.length) return err.textContent = 'Klistra in låttexten.';
-    btn.disabled = true; btn.textContent = 'Laddar upp…';
-    try {
-      let songId = sel.value;
-      if (!songId) {
-        const s = await sb.from('songs').insert({ title: document.getElementById('nTitle').value.trim(), artist: document.getElementById('nArtist').value.trim() || 'Mah-o-Dasht' }).select().single();
-        if (s.error) throw s.error; songId = s.data.id;
-      }
-      const ext = (file.name.split('.').pop() || 'mp3').toLowerCase().replace(/[^a-z0-9]/g, '');
-      const path = `${songId}/${Date.now()}.${ext}`;
-      const up = await sb.storage.from('audio').upload(path, file, { contentType: file.type || 'audio/mpeg' });
-      if (up.error) throw up.error;
-      const t = await sb.from('takes').insert({ song_id: songId, label, kind: document.getElementById('nKind').value, audio_path: path, lyrics }).select().single();
-      if (t.error) throw t.error;
-      go('take/' + t.data.id);
-    } catch (e) {
-      btn.disabled = false; btn.textContent = 'Ladda upp';
-      err.textContent = 'Uppladdningen misslyckades' + (e?.message?.includes('size') ? ': filen är för stor (max 50 MB).' : '. Försök igen.');
+  $('backBtn').onclick = () => go('');
+  $('nFile').onchange = () => $('nAudioOpts').classList.toggle('hidden', !$('nFile').files[0]);
+  $('nSave').onclick = async () => {
+    const err = $('nErr'), btn = $('nSave'); err.textContent = '';
+    const title = $('nTitle').value.trim(), file = $('nFile').files[0];
+    const fa = parseLyrics($('nLyrics').value), sv = parseLyrics($('nSv').value);
+    if (!title) return err.textContent = 'Skriv låtens titel.';
+    btn.disabled = true; btn.textContent = file ? 'Laddar upp…' : 'Sparar…';
+    const s = await sb.from('songs').insert({ title, artist: $('nArtist').value.trim() || 'Mah-o-Dasht', lyrics: fa.length ? fa : null, lyrics_sv: sv.length ? sv : null }).select().single();
+    if (s.error) { btn.disabled = false; btn.textContent = 'Spara'; return err.textContent = 'Kunde inte spara. Försök igen.'; }
+    if (file) {
+      try { state.takeId = (await uploadAudio(s.data.id, file, $('nLabel').value.trim() || file.name.replace(/\.[^.]+$/, ''), $('nKind').value)).id; }
+      catch (e) { alert(uploadErr(e) + ' Låten är sparad – lägg till ljudet på låtsidan.'); }
     }
+    go('song/' + s.data.id);
   };
 }
 
