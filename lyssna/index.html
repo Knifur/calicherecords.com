@@ -83,6 +83,10 @@
   .grid { display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:14px;margin-top:18px; }
   .vcard { background:none;border:none;padding:0;text-align:left;cursor:pointer;color:inherit;font:inherit;display:flex;flex-direction:column;justify-content:flex-start; }
   a.btn { text-decoration:none; }
+  .storage { margin-top:14px; }
+  .meter-row { display:flex;justify-content:space-between;gap:10px;font-family:'Cormorant Garamond',serif;font-size:13px;letter-spacing:.12em;text-transform:uppercase;color:#b0a090; }
+  .meter { height:6px;background:var(--mid);margin:6px 0; }
+  .meter > div { height:100%;background:var(--gold);transition:width .6s; }
   .thumb { position:relative;aspect-ratio:16/9;background:#100c07 center/cover no-repeat;border:1px solid rgba(200,168,130,0.15);transition:border-color .3s; }
   .vcard:hover .thumb { border-color:rgba(200,168,130,0.5); }
   .thumb .len { position:absolute;right:6px;bottom:6px;background:rgba(8,6,4,0.85);color:var(--dust);font-size:13px;padding:1px 6px; }
@@ -223,8 +227,24 @@ const sectionNav = cur => `
   <div class="tabs" style="margin:0 0 6px">
     <button class="tab ${cur === 'songs' ? 'on' : ''}" data-nav="">Låtar</button>
     <button class="tab ${cur === 'video' ? 'on' : ''}" data-nav="video">Videoklipp</button>
-  </div>`;
-const bindNav = () => app.querySelectorAll('[data-nav]').forEach(b => b.onclick = () => go(b.dataset.nav));
+  </div>
+  <div id="storage" class="storage"></div>`;
+const bindNav = () => { app.querySelectorAll('[data-nav]').forEach(b => b.onclick = () => go(b.dataset.nav)); renderStorage(); };
+
+// Supabase gratis: 1 GB fillagring totalt (ljud + video + miniatyrer).
+const STORAGE_LIMIT = 1024 * 1048576;
+async function renderStorage() {
+  const box = $('storage'); if (!box) return;
+  const r = await sb.rpc('storage_usage');
+  if (r.error) { box.innerHTML = ''; return; }
+  const by = Object.fromEntries(r.data.map(x => [x.bucket, +x.bytes]));
+  const used = r.data.reduce((n, x) => n + +x.bytes, 0), left = Math.max(0, STORAGE_LIMIT - used);
+  const pct = Math.min(100, used / STORAGE_LIMIT * 100), full = pct >= 85;
+  box.innerHTML = `
+    <div class="meter-row"><span>Lagring</span><span style="${full ? 'color:var(--red)' : ''}">${fmtMB(left)} kvar av 1 024 MB</span></div>
+    <div class="meter"><div style="width:${pct.toFixed(1)}%;${full ? 'background:var(--red)' : ''}"></div></div>
+    <div class="meter-row" style="font-size:12px"><span>Ljud ${fmtMB(by.audio || 0)} · Video ${fmtMB(by.video || 0)}</span><span>${pct.toFixed(0)} % använt</span></div>`;
+}
 
 async function uploadAudio(songId, file, label, kind) {
   const ext = (file.name.split('.').pop() || 'mp3').toLowerCase().replace(/[^a-z0-9]/g, '');
@@ -656,7 +676,6 @@ async function renderVideos() {
   await Promise.all([loadVideos(), sb.from('songs').select('id,title').then(r => { if (!r.error) state.songs = r.data; })]);
   const vids = state.videos.filter(v => state.vtab === 'all' || (state.vtab === 'short') === (+v.duration_sec < SHORT_SEC));
   const thumbs = await signedUrls(vids.map(v => v.thumb_path));
-  const used = state.videos.reduce((n, v) => n + (+v.size_bytes || 0), 0);
   const songTitle = id => state.songs.find(s => same(s.id, id))?.title;
   app.innerHTML = `
   <section class="fade" style="padding-top:24px">
@@ -677,9 +696,7 @@ async function renderVideos() {
       </button>`).join('')}</div>`
     : `<p class="help" style="margin-top:18px">Inga ${state.vtab === 'short' ? 'korta ' : state.vtab === 'long' ? 'långa ' : ''}videoklipp än.</p>`}
     <div class="rule"></div>
-    <button class="btn full" id="newVideoBtn">+ Lägg till video</button>
-    <p class="help" style="text-align:center;margin-top:10px;font-size:14px">Videolagring: ${fmtMB(used)} av ca 1 000 MB</p>
-  </section>`;
+    <button class="btn full" id="newVideoBtn">+ Lägg till video</button>  </section>`;
   bindNav();
   app.querySelectorAll('[data-vtab]').forEach(b => { b.classList.toggle('on', b.dataset.vtab === state.vtab); b.onclick = () => { state.vtab = b.dataset.vtab; renderVideos(); }; });
   app.querySelectorAll('[data-vid]').forEach(b => b.onclick = () => go('video/' + b.dataset.vid));
@@ -769,6 +786,11 @@ async function renderVideoNew() {
     if (f.size > MAX_VIDEO_MB * 1048576) return err.textContent = `Filen är för stor (${fmtMB(f.size)}). Krymp den först.`;
     if (!title) return err.textContent = 'Skriv en titel.';
     btn.disabled = true; btn.textContent = 'Förbereder…'; err.textContent = '';
+    const usage = await sb.rpc('storage_usage');
+    if (!usage.error) {
+      const left = STORAGE_LIMIT - usage.data.reduce((n, x) => n + +x.bytes, 0);
+      if (f.size > left) { btn.disabled = false; btn.textContent = 'Ladda upp'; return err.textContent = `Inte plats: filen är ${fmtMB(f.size)} men bara ${fmtMB(Math.max(0, left))} finns kvar. Ta bort något först.`; }
+    }
     const { duration, thumb } = await probeVideo(f);
     const base = `${Date.now()}`, ext = (f.name.split('.').pop() || 'mp4').toLowerCase().replace(/[^a-z0-9]/g, '');
     const path = `${base}.${ext}`, thumbPath = thumb ? `${base}.jpg` : null;
