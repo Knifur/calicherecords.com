@@ -467,7 +467,8 @@ function renderVersion() {
           </div>`).join('') || '<p class="help">Inga ord ändrade – bara noteringar.</p>'}
         <div class="row" style="margin-top:12px"><button class="btn" id="vCopy" style="flex:1">Kopiera rättade texten</button></div>
         <div class="sub-h" style="margin-top:18px">Ny version</div>
-        <p>Ladda upp den nya a cappellan. Den rättade texten blir version ${v.version + 1}, och Ajsan ser att en ny version finns.</p>
+        <p>Klistra in texten precis som den sjungs i den nya a cappellan (rutan är ifylld med den rättade texten – ändra det du ändrat i Suno), välj ljudfilen och ladda upp. Ajsan ser att version ${v.version + 1} finns.</p>
+        <label class="field"><span>Text för version ${v.version + 1}</span><textarea id="vText" class="fa" style="min-height:260px;direction:rtl">${esc(lyricsToText(correctedLyrics()))}</textarea></label>
         <label class="field"><span>Ny a cappella (mp3)</span><input type="file" id="vFile" accept="audio/*"></label>
         <div class="row"><button class="btn" id="vNew" style="flex:1">Ladda upp version ${v.version + 1}</button></div>
         <div class="row"><button class="linkbtn" id="vReopen">Öppna version ${v.version} för rättning igen</button></div>
@@ -498,10 +499,12 @@ function renderVersion() {
   };
   const nv = $('vNew'); if (nv) nv.onclick = async () => {
     const file = $('vFile').files[0], err = $('vErr');
+    const lyrics = parseLyrics($('vText').value);
+    if (!lyrics.some(l => l.type === 'line')) return err.textContent = 'Texten för nya versionen är tom.';
     if (!file) return err.textContent = 'Välj den nya a cappellan.';
     nv.disabled = true; nv.textContent = 'Laddar upp…';
     const next = v.version + 1;
-    const ins = await sb.from('song_versions').insert({ song_id: state.song.id, version: next, lyrics: correctedLyrics(), status: 'rättas' }).select().single();
+    const ins = await sb.from('song_versions').insert({ song_id: state.song.id, version: next, lyrics, status: 'rättas' }).select().single();
     if (ins.error) { nv.disabled = false; nv.textContent = `Ladda upp version ${next}`; return err.textContent = 'Kunde inte skapa versionen. Försök igen.'; }
     try {
       const t = await uploadAudio(state.song.id, file, `Version ${next} – a cappella`, 'acappella', next);
