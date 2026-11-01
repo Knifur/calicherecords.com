@@ -594,6 +594,11 @@ function currentWord(i, wi, w) {
   const e = editsFor(i, wi, w).filter(x => x.new_word);
   return e.length ? e[e.length - 1].new_word : w;
 }
+function wordClass(i, wi, w) {
+  const hits = editsFor(i, wi, w);
+  const changed = hits.some(x => x.new_word), open = hits.some(x => x.status !== 'klar');
+  return changed ? (open ? 'w chg open' : 'w chg') : hits.length ? (open ? 'w has' : 'w done') : 'w';
+}
 const currentLine = i => (baseLyrics()[i]?.text || '').split(/\s+/).map((w, wi) => currentWord(i, wi, w)).join(' ');
 function svLines() {
   const sv = (state.song.lyrics_sv || []).filter(l => l.type === 'line');
@@ -623,9 +628,7 @@ function renderText() {
       if (l.type === 'tag') return `<div class="tag">${esc(l.text)}</div>`;
       const words = l.text.split(/\s+/);
       return `<div class="line">${words.map((w, wi) => {
-        const hits = editsFor(i, wi, w);
-        const changed = hits.some(x => x.new_word), open = hits.some(x => x.status !== 'klar');
-        const cls = state.showOrig ? 'w' : changed ? (open ? 'w chg open' : 'w chg') : hits.length ? (open ? 'w has' : 'w done') : 'w';
+        const cls = state.showOrig ? 'w' : wordClass(i, wi, w);
         return `<span class="${cls}" data-line="${i}" data-wi="${wi}">${esc(state.showOrig ? w : currentWord(i, wi, w))}</span>`;
       }).join(' ')}</div>${state.view === 'both' && sv[i] ? `<div class="sv-under">${esc(sv[i])}</div>` : ''}`;
     }).join('');
@@ -692,7 +695,10 @@ function openSheet(lineIndex, wi) {
     <div class="eyebrow">Ändra ordet</div>
     <div class="big">${esc(cur)}</div>
     ${cur !== orig ? `<div class="ctx" style="margin-bottom:4px">Original: ${esc(orig)}</div>` : ''}
-    <div class="ctx">${esc(currentLine(lineIndex))}</div>
+    <div class="ctx">${baseLyrics()[lineIndex].text.split(/\s+/).map((w, k) => {   // tryckta ordet i samma färg som i låttexten
+      const c = k === wi ? (wordClass(lineIndex, k, w) === 'w' ? 'w has' : wordClass(lineIndex, k, w)) : '';
+      return c ? `<span class="${c}" style="cursor:default">${esc(currentWord(lineIndex, k, w))}</span>` : esc(currentWord(lineIndex, k, w));
+    }).join(' ')}</div>
     ${sv ? `<div class="sv-under" style="text-align:center;margin:-10px 0 18px">${esc(sv)}</div>` : ''}
     <label class="field"><span>Ordet ska vara</span><input type="text" id="cNew" class="fa" value="${esc(cur)}"></label>
     <label class="field"><span>Uttal: hur det ska låta</span><input type="text" id="cShould" placeholder="t.ex. to / طُ"></label>
