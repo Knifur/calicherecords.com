@@ -43,6 +43,16 @@
   .fa { font-family:'Vazirmatn','EB Garamond',sans-serif;direction:rtl;text-align:right; }
   input[type=file] { color:var(--gold);font-family:'Cormorant Garamond',serif;font-size:15px; }
   .err { color:var(--red);font-size:16px;margin-top:10px;min-height:1em; }
+  .verbox { border:1px solid rgba(200,168,130,.35);padding:16px 18px;margin:18px 0 6px;background:rgba(200,168,130,.04); }
+  .verbox.new { border-color:var(--gold);box-shadow:0 0 0 1px rgba(200,168,130,.25); }
+  .verbox.lock { border-color:rgba(200,168,130,.2); }
+  .verbox h3 { font-family:'Playfair Display',serif;font-size:21px;margin:0 0 6px;color:var(--dust); }
+  .verbox p { margin:4px 0 12px;color:#c8b8a8; }
+  .fixline { margin:10px 0;padding:10px 0;border-top:1px solid rgba(200,168,130,.12); }
+  .fixline .now { font-size:19px;color:var(--dust); }
+  .fixline .now b { color:var(--gold);font-weight:600;border-bottom:1px solid var(--gold); }
+  .fixline .was { font-size:14px;color:#8a7a6a;margin-top:4px; }
+  .fixline .words { font-size:14px;color:#b0a090;margin-top:4px; }
   .ok { color:var(--gold);font-size:16px;margin-top:10px; }
 
   .card { display:block;width:100%;text-align:left;background:#100c07;border:1px solid rgba(200,168,130,0.15);padding:18px 20px;margin-bottom:12px;cursor:pointer;color:inherit;font:inherit;position:relative;overflow:hidden;transition:all .3s cubic-bezier(0.16,1,0.3,1); }
@@ -155,6 +165,13 @@ function parseLyrics(text) {
   return text.split(/\r?\n/).map(l => l.trim()).filter(l => l.length)
     .map(l => /^\[.*\]$/.test(l) ? { type:'tag', text:l.slice(1,-1) } : { type:'line', text:l });
 }
+// Versioner (tabellen song_versions): rätta → Klar (låst) → ny version → godkänn (låst). Varje version har en egen text
+// (version 1 = originalet, nästa = förra versionens rättade text) och egna rättningar och ljudfiler. Originalet rörs aldrig.
+// Saknas tabellen (SQL-filen 03 inte körd) fungerar sidan som förut, utan versioner.
+const baseLyrics = () => state.ver?.lyrics || state.song?.lyrics || [];
+const editable = () => !state.ver || state.ver.status === 'rättas';
+const verOn = () => Array.isArray(state.versions);
+const verLabel = v => v.status === 'godkänd' ? 'Godkänd' : v.status === 'inskickad' ? 'Inskickad' : 'Rättas';
 const lyricsToText = arr => (arr || []).map(l => l.type === 'tag' ? `[${l.text}]` : l.text).join('\n');
 const lineCount = arr => (arr || []).filter(l => l.type === 'line').length;
 
@@ -210,13 +227,14 @@ logoutBtn.onclick = async () => { await sb.auth.signOut(); go(''); route(); };
 
 /* ---------- Data ---------- */
 async function loadAll() {
-  const [s, t, c] = await Promise.all([
+  const [s, t, c, v] = await Promise.all([
     sb.from('songs').select('*').order('created_at', { ascending:false }),
     sb.from('takes').select('id,song_id,label,kind,audio_path,created_at').order('created_at', { ascending:false }),
-    sb.from('corrections').select('id,song_id,status')
+    sb.from('corrections').select('*'),
+    sb.from('song_versions').select('id,song_id,version,status,created_at').order('version')
   ]);
   if (s.error || t.error || c.error) throw (s.error || t.error || c.error);
-  state.songs = s.data; state.takes = t.data; state.corrections = c.data;
+  state.songs = s.data; state.takes = t.data; state.corrections = c.data; state.allVersions = v.error ? null : v.data;
   await loadVideos();
 }
 async function loadVideos() {
@@ -246,12 +264,12 @@ async function renderStorage() {
     <div class="meter-row" style="font-size:12px"><span>Ljud ${fmtMB(by.audio || 0)} · Video ${fmtMB(by.video || 0)}</span><span>${pct.toFixed(0)} % använt</span></div>`;
 }
 
-async function uploadAudio(songId, file, label, kind) {
+async function uploadAudio(songId, file, label, kind, version) {
   const ext = (file.name.split('.').pop() || 'mp3').toLowerCase().replace(/[^a-z0-9]/g, '');
   const path = `${songId}/${Date.now()}.${ext}`;
   const up = await sb.storage.from('audio').upload(path, file, { contentType: file.type || 'audio/mpeg' });
   if (up.error) throw up.error;
-  const t = await sb.from('takes').insert({ song_id: songId, label, kind, audio_path: path }).select().single();
+  const t = await sb.from('takes').insert({ song_id: songId, label, kind, audio_path: path, ...(version ? { version } : {}) }).select().single();
   if (t.error) { await sb.storage.from('audio').remove([path]); throw t.error; }
   return t.data;
 }
@@ -263,7 +281,12 @@ async function renderList() {
   try { await loadAll(); } catch (e) { app.innerHTML = `<p class="err" style="padding-top:40px">Kunde inte hämta låtarna.</p>`; return; }
   const songsHtml = state.songs.map(song => {
     const nTakes = state.takes.filter(t => same(t.song_id, song.id)).length;
-    const open = state.corrections.filter(c => same(c.song_id, song.id) && c.status !== 'klar').length;
+    const vs = (state.allVersions || []).filter(x => same(x.song_id, song.id)), lv = vs[vs.length - 1];
+    const open = state.corrections.filter(c => same(c.song_id, song.id) && c.status !== 'klar' && (!lv || (c.version || 1) === lv.version)).length;
+    const lvEdits = lv ? state.corrections.filter(c => same(c.song_id, song.id) && (c.version || 1) === lv.version).length : 0;
+    const verChip = !lv ? '' : lv.status === 'godkänd' ? `<span class="chip yes">✓ Godkänd v${lv.version}</span>`
+      : lv.status === 'inskickad' ? `<span class="chip" style="color:var(--gold);border-color:var(--gold)">Inskickad v${lv.version} – väntar på ny version</span>`
+      : lv.version > 1 && !lvEdits ? `<span class="chip" style="color:var(--dust);border-color:var(--gold);background:rgba(200,168,130,.15)">● Ny version ${lv.version} att lyssna på</span>` : '';
     return `
       <button class="card" data-song="${song.id}">
         <div class="card-meta" style="margin:0 0 4px">${esc(song.artist)}</div>
@@ -273,7 +296,8 @@ async function renderList() {
           <span class="chip ${song.lyrics_sv?.length ? 'yes' : ''}">Svenska ${song.lyrics_sv?.length ? 'finns' : 'saknas'}</span>
           <span class="chip ${nTakes ? 'yes' : ''}">${nTakes ? (nTakes === 1 ? '1 ljudfil' : nTakes + ' ljudfiler') : 'Ljud saknas'}</span>
           ${state.videos.some(v => same(v.song_id, song.id)) ? '<span class="chip yes">Video finns</span>' : ''}
-          ${open ? `<span class="chip" style="color:var(--red);border-color:rgba(224,112,42,.5)">${open} att rätta</span>` : ''}
+          ${verChip}
+          ${open && lv?.status !== 'inskickad' ? `<span class="chip" style="color:var(--red);border-color:rgba(224,112,42,.5)">${open} att rätta</span>` : ''}
         </div>
       </button>`;
   }).join('');
@@ -296,17 +320,26 @@ async function renderList() {
 /* ---------- Song view ---------- */
 async function renderSong(id) {
   app.innerHTML = `<p class="help" style="padding-top:40px">Hämtar…</p>`;
-  const [s, t, c, v] = await Promise.all([
+  const [s, t, c, v, vv] = await Promise.all([
     sb.from('songs').select('*').eq('id', id).single(),
-    sb.from('takes').select('id,song_id,label,kind,audio_path,created_at').eq('song_id', id).order('created_at', { ascending:false }),
+    sb.from('takes').select('*').eq('song_id', id).order('created_at', { ascending:false }),
     sb.from('corrections').select('*').eq('song_id', id).order('created_at'),
-    sb.from('videos').select('id,title,duration_sec').eq('song_id', id).order('created_at', { ascending:false })
+    sb.from('videos').select('id,title,duration_sec').eq('song_id', id).order('created_at', { ascending:false }),
+    sb.from('song_versions').select('*').eq('song_id', id).order('version')
   ]);
   if (s.error) { app.innerHTML = `<p class="err" style="padding-top:40px">Låten hittades inte.</p>`; return; }
   if (!same(state.song?.id, id)) state.showOrig = false;
-  state.song = s.data; state.songTakes = t.data || []; state.list = c.data || [];
+  state.song = s.data; state.songTakes = t.data || []; state.allList = c.data || [];
+  state.versions = vv.error ? null : vv.data;
+  if (verOn() && !state.versions.length && s.data.lyrics?.length) {   // en låt utan versioner får version 1 (originalet)
+    const ins = await sb.from('song_versions').insert({ song_id: id, version: 1, lyrics: s.data.lyrics }).select().single();
+    if (!ins.error) state.versions = [ins.data];
+  }
+  state.ver = verOn() && state.versions.length ? state.versions[state.versions.length - 1] : null;
+  state.list = state.ver ? state.allList.filter(x => (x.version || 1) === state.ver.version) : state.allList;
   const songVideos = v.error ? [] : v.data;
-  if (!state.songTakes.some(x => same(x.id, state.takeId))) state.takeId = state.songTakes[0]?.id || null;
+  if (!state.songTakes.some(x => same(x.id, state.takeId)))
+    state.takeId = (state.ver && state.songTakes.find(x => (x.version || 1) === state.ver.version) || state.songTakes[0])?.id || null;
   const song = state.song, hasFa = !!song.lyrics?.length;
 
   app.innerHTML = `
@@ -315,6 +348,7 @@ async function renderSong(id) {
     <div class="eyebrow" style="margin-top:18px"><span class="dot"></span>${esc(song.artist)}</div>
     <h1 style="font-size:clamp(32px,8vw,46px)">${esc(song.title)}</h1>
     <div class="player" id="player"></div>
+    <div id="verBox"></div>
     ${hasFa || song.lyrics_sv?.length ? `
       <div class="tabs">
         <button class="tab" data-view="fa">Persiska</button>
@@ -331,6 +365,7 @@ async function renderSong(id) {
     <div class="rule"></div>
     <div class="eyebrow">Hantera låten</div>
 
+    ${verOn() && state.versions.length ? `<div class="sub-h">Versioner</div><div id="verList"></div>` : ''}
     <div class="sub-h">Ljudfiler</div>
     <div id="takeList"></div>
     <button class="btn full" id="addAudioBtn" style="margin-top:12px">+ Lägg till ljudfil</button>
@@ -383,7 +418,115 @@ async function renderSong(id) {
   renderPlayer();
   renderTakes();
   if ($('lyrics')) renderText();
+  renderVersion();
   bindManage();
+}
+
+/* ---------- Versioner: rätta → Klar → ny version → godkänn ---------- */
+function correctedLyrics() {   // versionens text med rättningarna inlagda (blir nästa versions text)
+  return baseLyrics().map((l, k) => l.type === 'line' ? { type:'line', text: currentLine(k) } : l);
+}
+function changedLines() {
+  const base = baseLyrics(), idx = [...new Set(state.list.filter(x => x.new_word).map(x => x.line_index))].sort((a, b) => a - b);
+  return idx.filter(i => base[i]?.type === 'line').map(i => {
+    const was = base[i].text.split(/\s+/), now = was.map((w, wi) => currentWord(i, wi, w));
+    return { i, was: base[i].text, now, changed: now.map((w, wi) => w !== was[wi]), pairs: now.map((w, wi) => w !== was[wi] ? [was[wi], w] : null).filter(Boolean) };
+  });
+}
+function renderVersion() {
+  const box = $('verBox'); if (!box) return;
+  const v = state.ver;
+  if (!v) { box.innerHTML = ''; return; }
+  const n = state.list.length, fixes = state.list.filter(x => x.new_word).length;
+  const when = d => d ? new Date(d).toLocaleDateString('sv-SE') : '';
+  if (v.status === 'rättas') {
+    const fresh = v.version > 1 && !n;
+    box.innerHTML = `
+      <div class="verbox ${fresh ? 'new' : ''}">
+        <div class="eyebrow">Version ${v.version}</div>
+        <h3>${fresh ? `● Ny version ${v.version} – lyssna` : 'Rätta orden som är fel'}</h3>
+        <p>${fresh ? 'Lyssna igenom den nya versionen. Är något fortfarande fel: tryck på ordet och rätta det. Stämmer allt: godkänn låten.'
+          : `Pausa och tryck på ett ord för att rätta det. När du är klar med hela låten: tryck <b>Klar</b> – då låses versionen tills en ny kommer.`}</p>
+        <div class="row">
+          ${n ? `<button class="btn" id="vSend" style="flex:1">Klar – skicka ${n} rättning${n === 1 ? '' : 'ar'}</button>` : ''}
+          <button class="btn" id="vOk" style="flex:1">${n ? 'Godkänn ändå' : 'Godkänn låten'}</button>
+        </div>
+        <div class="err" id="vErr"></div>
+      </div>`;
+  } else if (v.status === 'inskickad') {
+    const lines = changedLines();
+    box.innerHTML = `
+      <div class="verbox lock">
+        <div class="eyebrow">Version ${v.version} · inskickad ${when(v.sent_at)}</div>
+        <h3>Låst – väntar på en ny version</h3>
+        <p>${fixes} ord rättade i ${lines.length} rad${lines.length === 1 ? '' : 'er'}. Rättade ord är markerade:</p>
+        ${lines.map(l => `<div class="fixline">
+            <div class="now fa" style="text-align:right">${l.now.map((w, k) => l.changed[k] ? `<b>${esc(w)}</b>` : esc(w)).join(' ')}</div>
+            <div class="was fa" style="text-align:right">var: ${esc(l.was)}</div>
+            <div class="words fa" style="text-align:right">${l.pairs.map(([a, b]) => `${esc(a)} ← ${esc(b)}`).join(' · ')}</div>
+          </div>`).join('') || '<p class="help">Inga ord ändrade – bara noteringar.</p>'}
+        <div class="row" style="margin-top:12px"><button class="btn" id="vCopy" style="flex:1">Kopiera rättade texten</button></div>
+        <div class="sub-h" style="margin-top:18px">Ny version</div>
+        <p>Ladda upp den nya a cappellan. Den rättade texten blir version ${v.version + 1}, och Ajsan ser att en ny version finns.</p>
+        <label class="field"><span>Ny a cappella (mp3)</span><input type="file" id="vFile" accept="audio/*"></label>
+        <div class="row"><button class="btn" id="vNew" style="flex:1">Ladda upp version ${v.version + 1}</button></div>
+        <div class="row"><button class="linkbtn" id="vReopen">Öppna version ${v.version} för rättning igen</button></div>
+        <div class="err" id="vErr"></div>
+      </div>`;
+  } else {
+    box.innerHTML = `
+      <div class="verbox lock">
+        <div class="eyebrow">Version ${v.version}</div>
+        <h3>✓ Godkänd ${when(v.approved_at)} – låst</h3>
+        <p>Den här versionen gäller. Texten går inte att ändra.</p>
+        <div class="row"><button class="linkbtn" id="vReopen">Öppna för rättning igen</button></div>
+        <div class="err" id="vErr"></div>
+      </div>`;
+  }
+  const upd = async (fields, msg) => {
+    const r = await sb.from('song_versions').update(fields).eq('id', v.id);
+    if (r.error) { $('vErr').textContent = 'Kunde inte spara. Försök igen.'; return; }
+    renderSong(state.song.id);
+  };
+  const send = $('vSend'); if (send) send.onclick = () => confirmBox(`Skicka rättningarna i version ${v.version}? Versionen låses tills en ny version laddas upp.`, 'Klar – skicka',
+    () => upd({ status: 'inskickad', sent_at: new Date().toISOString() }));
+  const ok = $('vOk'); if (ok) ok.onclick = () => confirmBox(`Godkänna version ${v.version}? Den låses och gäller som färdig.`, 'Godkänn',
+    () => upd({ status: 'godkänd', approved_at: new Date().toISOString() }));
+  const ro = $('vReopen'); if (ro) ro.onclick = () => confirmBox(`Öppna version ${v.version} för rättning igen?`, 'Öppna', () => upd({ status: 'rättas', approved_at: null }));
+  const cp = $('vCopy'); if (cp) cp.onclick = async () => {
+    try { await navigator.clipboard.writeText(lyricsToText(correctedLyrics())); cp.textContent = '✓ Kopierad'; } catch (e) { cp.textContent = 'Kunde inte kopiera'; }
+  };
+  const nv = $('vNew'); if (nv) nv.onclick = async () => {
+    const file = $('vFile').files[0], err = $('vErr');
+    if (!file) return err.textContent = 'Välj den nya a cappellan.';
+    nv.disabled = true; nv.textContent = 'Laddar upp…';
+    const next = v.version + 1;
+    const ins = await sb.from('song_versions').insert({ song_id: state.song.id, version: next, lyrics: correctedLyrics(), status: 'rättas' }).select().single();
+    if (ins.error) { nv.disabled = false; nv.textContent = `Ladda upp version ${next}`; return err.textContent = 'Kunde inte skapa versionen. Försök igen.'; }
+    try {
+      const t = await uploadAudio(state.song.id, file, `Version ${next} – a cappella`, 'acappella', next);
+      state.takeId = t.id;
+    } catch (e) {
+      await sb.from('song_versions').delete().eq('id', ins.data.id);   // ingen halv version
+      nv.disabled = false; nv.textContent = `Ladda upp version ${next}`; return err.textContent = uploadErr(e);
+    }
+    renderSong(state.song.id);
+  };
+  const vl = $('verList');
+  if (vl) vl.innerHTML = [...state.versions].reverse().map(x => {
+    const cn = state.allList.filter(c => (c.version || 1) === x.version && c.new_word).length;
+    return `<div class="item ${x.id === v.id ? 'on' : ''}"><div>
+      <div class="card-title" style="font-size:18px">Version ${x.version}</div>
+      <div class="card-meta">${verLabel(x)}${x.sent_at ? ' · inskickad ' + when(x.sent_at) : ''}${x.approved_at ? ' · godkänd ' + when(x.approved_at) : ''} · ${cn} ord rättade</div>
+    </div></div>`;
+  }).join('');
+}
+function confirmBox(text, yes, action) {
+  sheetInner.innerHTML = `<div class="eyebrow">Bekräfta</div><p style="font-size:18px;margin:14px 0 18px">${esc(text)}</p>
+    <div class="row"><button class="btn" id="cbYes" style="flex:1">${esc(yes)}</button><button class="btn" id="cbNo" style="flex:1">Avbryt</button></div>`;
+  openSheetUI();
+  $('cbNo').onclick = closeSheet;
+  $('cbYes').onclick = async () => { $('cbYes').disabled = true; await action(); closeSheet(); };
 }
 
 async function audioUrl(take) {
@@ -398,7 +541,7 @@ async function renderPlayer(seek) {
   if (!take) { box.innerHTML = `<p class="help">Ingen ljudfil. Du kan ändå rätta i texten.</p>`; return; }
   const url = await audioUrl(take);
   box.innerHTML = `
-    ${state.songTakes.length > 1 ? `<select id="takeSel" style="margin-bottom:10px;font-size:16px;padding:8px 10px">${state.songTakes.map(t => `<option value="${t.id}" ${same(t.id, take.id) ? 'selected' : ''}>${esc(t.label)} · ${kindName(t.kind)}</option>`).join('')}</select>`
+    ${state.songTakes.length > 1 ? `<select id="takeSel" style="margin-bottom:10px;font-size:16px;padding:8px 10px">${state.songTakes.map(t => `<option value="${t.id}" ${same(t.id, take.id) ? 'selected' : ''}>${state.ver ? 'v' + (t.version || 1) + ' · ' : ''}${esc(t.label)} · ${kindName(t.kind)}</option>`).join('')}</select>`
       : `<div class="card-meta" style="margin:0 0 8px">${esc(take.label)} · ${kindName(take.kind)}</div>`}
     ${url ? `<audio id="audio" controls preload="metadata" src="${esc(url)}"></audio>
     <div class="ctrls">
@@ -425,7 +568,7 @@ function renderTakes() {
     <div class="item ${same(t.id, state.takeId) ? 'on' : ''}">
       <div>
         <div class="card-title" style="font-size:18px">${esc(t.label)}</div>
-        <div class="card-meta">${kindName(t.kind)} · ${new Date(t.created_at).toLocaleDateString('sv-SE')}</div>
+        <div class="card-meta">${state.ver ? 'Version ' + (t.version || 1) + ' · ' : ''}${kindName(t.kind)} · ${new Date(t.created_at).toLocaleDateString('sv-SE')}</div>
       </div>
       <div class="row" style="margin:0;flex-wrap:nowrap">
         ${same(t.id, state.takeId) ? '' : `<button class="btn small" data-play="${t.id}">Spela</button>`}
@@ -451,11 +594,11 @@ function currentWord(i, wi, w) {
   const e = editsFor(i, wi, w).filter(x => x.new_word);
   return e.length ? e[e.length - 1].new_word : w;
 }
-const currentLine = i => (state.song.lyrics[i]?.text || '').split(/\s+/).map((w, wi) => currentWord(i, wi, w)).join(' ');
+const currentLine = i => (baseLyrics()[i]?.text || '').split(/\s+/).map((w, wi) => currentWord(i, wi, w)).join(' ');
 function svLines() {
   const sv = (state.song.lyrics_sv || []).filter(l => l.type === 'line');
   let n = 0;
-  return (state.song.lyrics || []).map(l => l.type === 'line' ? (sv[n++]?.text || '') : '');
+  return baseLyrics().map(l => l.type === 'line' ? (sv[n++]?.text || '') : '');
 }
 
 function renderText() {
@@ -464,7 +607,7 @@ function renderText() {
   app.querySelectorAll('[data-view]').forEach(b => b.classList.toggle('on', b.dataset.view === state.view));
   const last = state.list[state.list.length - 1];
   $('toolbar').innerHTML = state.view === 'sv' || !hasFa ? '' : `
-    <button class="btn small" id="undoBtn" ${last ? '' : 'disabled'}>↶ Ångra senaste${last ? ` (${esc(last.new_word ? last.word + ' → ' + last.new_word : last.word)})` : ''}</button>
+    <button class="btn small" id="undoBtn" ${last && editable() ? '' : 'disabled'}>↶ Ångra senaste${last ? ` (${esc(last.new_word ? last.word + ' → ' + last.new_word : last.word)})` : ''}</button>
     <button class="btn small" id="origBtn">${state.showOrig ? 'Visa ändrad text' : 'Visa original'}</button>`;
   $('origNotice').innerHTML = state.showOrig && state.view !== 'sv' ? '<div class="notice">Du ser originalet, så som texten laddades upp</div>' : '';
   const lyr = $('lyrics');
@@ -476,7 +619,7 @@ function renderText() {
       : '<p class="help">Ingen svensk översättning än. Lägg till den under <i>Text</i> nedan.</p>';
   } else {
     const sv = svLines();
-    lyr.innerHTML = song.lyrics.map((l, i) => {
+    lyr.innerHTML = baseLyrics().map((l, i) => {
       if (l.type === 'tag') return `<div class="tag">${esc(l.text)}</div>`;
       const words = l.text.split(/\s+/);
       return `<div class="line">${words.map((w, wi) => {
@@ -486,7 +629,8 @@ function renderText() {
         return `<span class="${cls}" data-line="${i}" data-wi="${wi}">${esc(state.showOrig ? w : currentWord(i, wi, w))}</span>`;
       }).join(' ')}</div>${state.view === 'both' && sv[i] ? `<div class="sv-under">${esc(sv[i])}</div>` : ''}`;
     }).join('');
-    lyr.querySelectorAll('.w').forEach(s => s.onclick = () => openSheet(+s.dataset.line, +s.dataset.wi));
+    lyr.querySelectorAll('.w').forEach(s => s.onclick = () => editable() ? openSheet(+s.dataset.line, +s.dataset.wi)
+      : $('verBox')?.scrollIntoView({ behavior:'smooth', block:'center' }));
   }
   const ub = $('undoBtn');
   if (ub) ub.onclick = async () => {
@@ -507,7 +651,7 @@ async function refreshEdits() {
 }
 
 function renderCorrList() {
-  const cl = $('corrList'), lyrics = state.song.lyrics || [];
+  const cl = $('corrList'), lyrics = baseLyrics();
   const items = [...state.list].sort((a, b) => a.line_index - b.line_index || a.created_at.localeCompare(b.created_at));
   cl.innerHTML = items.length ? items.map(x => `
     <div class="corr ${x.status === 'klar' ? 'done' : ''}">
@@ -541,7 +685,7 @@ function openSheet(lineIndex, wi) {
   const a = $('audio');
   const t = a ? a.currentTime : null;
   if (a) a.pause();
-  const orig = state.song.lyrics[lineIndex].text.split(/\s+/)[wi];
+  const orig = baseLyrics()[lineIndex].text.split(/\s+/)[wi];
   const cur = currentWord(lineIndex, wi, orig);
   const sv = svLines()[lineIndex];
   sheetInner.innerHTML = `
@@ -568,6 +712,7 @@ function openSheet(lineIndex, wi) {
     const tm = $('cTime').value.trim().match(/^(\d+):(\d{1,2})$/);
     const btn = $('cSave'); btn.disabled = true;
     const { error } = await sb.from('corrections').insert({
+      ...(state.ver ? { version: state.ver.version } : {}),
       song_id: state.song.id, take_id: state.takeId, line_index: lineIndex, word_index: wi, word: orig,
       new_word: changed ? nw : (cur !== orig ? cur : null),
       should_sound: should || null, note: note || null,
@@ -588,7 +733,7 @@ function bindManage() {
     if (!file) return err.textContent = 'Välj en ljudfil.';
     btn.disabled = true; btn.textContent = 'Laddar upp…';
     try {
-      const t = await uploadAudio(song.id, file, $('aLabel').value.trim() || file.name.replace(/\.[^.]+$/, ''), $('aKind').value);
+      const t = await uploadAudio(song.id, file, $('aLabel').value.trim() || file.name.replace(/\.[^.]+$/, ''), $('aKind').value, state.ver?.version);
       state.takeId = t.id; renderSong(song.id);
     } catch (e) { btn.disabled = false; btn.textContent = 'Ladda upp'; err.textContent = uploadErr(e); }
   };
