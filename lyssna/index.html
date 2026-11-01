@@ -690,7 +690,7 @@ function openSheet(lineIndex, wi) {
   if (a) a.pause();
   const orig = baseLyrics()[lineIndex].text.split(/\s+/)[wi];
   const cur = currentWord(lineIndex, wi, orig);
-  const sv = svLines()[lineIndex];
+  const sv = svLines()[lineIndex], saved = editsFor(lineIndex, wi, orig);
   sheetInner.innerHTML = `
     <div class="eyebrow">Ändra ordet</div>
     <div class="big">${esc(cur)}</div>
@@ -700,6 +700,12 @@ function openSheet(lineIndex, wi) {
       return c ? `<span class="${c}" style="cursor:default">${esc(currentWord(lineIndex, k, w))}</span>` : esc(currentWord(lineIndex, k, w));
     }).join(' ')}</div>
     ${sv ? `<div class="sv-under" style="text-align:center;margin:-10px 0 18px">${esc(sv)}</div>` : ''}
+    ${saved.length ? `<div class="notice" style="margin:0 0 18px"><div class="eyebrow" style="margin-bottom:6px">Redan sparat på ordet</div>${saved.map(x => `<div style="margin:4px 0">
+      ${x.new_word ? `Ordet: <span class="fa">${esc(x.word)} → ${esc(x.new_word)}</span>` : ''}
+      ${x.should_sound ? `${x.new_word ? ' · ' : ''}Uttal: <span class="fa">${esc(x.should_sound)}</span>` : ''}
+      ${x.note ? `${x.new_word || x.should_sound ? ' · ' : ''}Notering: ${esc(x.note)}` : ''}
+      ${!x.new_word && !x.should_sound && !x.note ? 'Markerat utan text' : ''}
+      ${x.time_sec != null ? ` · ${fmtTime(x.time_sec)}` : ''}${x.status === 'klar' ? ' · klar' : ''}</div>`).join('')}</div>` : ''}
     <label class="field"><span>Ordet ska vara</span><input type="text" id="cNew" class="fa" value="${esc(cur)}"></label>
     <label class="field"><span>Uttal: hur det ska låta</span><input type="text" id="cShould" placeholder="t.ex. to / طُ"></label>
     <label class="field"><span>Notering (frivilligt)</span><input type="text" id="cNote"></label>
