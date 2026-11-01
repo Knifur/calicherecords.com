@@ -543,7 +543,11 @@ async function renderPlayer(seek) {
   const box = $('player'), take = state.songTakes.find(x => same(x.id, state.takeId));
   if (!take) { box.innerHTML = `<p class="help">Ingen ljudfil. Du kan ändå rätta i texten.</p>`; return; }
   const url = await audioUrl(take);
+  const tv = take.version || 1, cv = state.ver?.version;
   box.innerHTML = `
+    ${cv ? (tv === cv
+      ? `<div class="eyebrow" style="margin-bottom:8px;color:var(--dust)">▶ Spelar version ${tv}${state.versions.length > 1 ? ' – den nyaste' : ''}</div>`
+      : `<div class="notice" style="margin:0 0 10px;color:var(--red);border-color:var(--red)">Obs: du spelar gamla version ${tv} – texten nedan är version ${cv}</div>`) : ''}
     ${state.songTakes.length > 1 ? `<select id="takeSel" style="margin-bottom:10px;font-size:16px;padding:8px 10px">${state.songTakes.map(t => `<option value="${t.id}" ${same(t.id, take.id) ? 'selected' : ''}>${state.ver ? 'v' + (t.version || 1) + ' · ' : ''}${esc(t.label)} · ${kindName(t.kind)}</option>`).join('')}</select>`
       : `<div class="card-meta" style="margin:0 0 8px">${esc(take.label)} · ${kindName(take.kind)}</div>`}
     ${url ? `<audio id="audio" controls preload="metadata" src="${esc(url)}"></audio>
