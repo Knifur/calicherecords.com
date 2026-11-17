@@ -5,6 +5,8 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <title>Lyssna — Caliche Records</title>
 <meta name="robots" content="noindex, nofollow">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'unsafe-inline' https://cdn.jsdelivr.net; style-src 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; connect-src https://tvsgupgoqltuktffkfrx.supabase.co wss://tvsgupgoqltuktffkfrx.supabase.co; media-src https://tvsgupgoqltuktffkfrx.supabase.co blob:; img-src data: https://tvsgupgoqltuktffkfrx.supabase.co; base-uri 'none'; form-action 'none'; object-src 'none'">
+<meta name="referrer" content="no-referrer">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,700;0,900;1,400&family=EB+Garamond:ital,wght@0,400;0,500;1,400&family=Cormorant+Garamond:ital,wght@0,300;0,400;1,400&family=Vazirmatn:wght@400;500&display=swap" rel="stylesheet">
 <style>
@@ -142,11 +144,12 @@
 
 <footer>Caliche Records International · Endast för inbjudna</footer>
 
-<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.min.js" integrity="sha384-GFr3yTh5lJznCbZfpTtXnwboFsxqtTQoeTZCRHhE0579KrRmlCzen5AA8ohaB5ug" crossorigin="anonymous"></script>
 <script>
 const SUPABASE_URL = 'https://tvsgupgoqltuktffkfrx.supabase.co';
 const SUPABASE_KEY = 'sb_publishable_9iZmfnAENWhuznPDRzKOig_igxZNIj6';
-const DEFAULT_EMAIL = '';
+// Ingen e-post i källkoden: den sparas bara i webbläsaren på den enhet som loggat in.
+let savedEmail = ''; try { savedEmail = localStorage.getItem('lyssnaEmail') || ''; } catch (e) {}
 const sb = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 
 const app = document.getElementById('app');
@@ -205,21 +208,22 @@ function renderLogin() {
     <p class="sub">Texter och ljudfiler</p>
     <div class="rule"></div>
     <form id="loginForm">
-      <label class="field hidden" id="emailField"><span>Användare</span>
-        <input type="email" id="email" value="${DEFAULT_EMAIL}" autocomplete="username"></label>
+      <label class="field${savedEmail ? ' hidden' : ''}" id="emailField"><span>E-post</span>
+        <input type="email" id="email" value="${esc(savedEmail)}" autocomplete="username" required></label>
       <label class="field"><span>Lösenord</span>
         <input type="password" id="pw" autocomplete="current-password" required></label>
       <button class="btn full" type="submit">Logga in</button>
       <div class="err" id="loginErr"></div>
     </form>
-    <p style="margin-top:20px;text-align:center"><button class="linkbtn" id="otherUser">Annan användare</button></p>
+    <p style="margin-top:20px;text-align:center"><button class="linkbtn${savedEmail ? '' : ' hidden'}" id="otherUser" type="button">Annan användare</button></p>
   </section>`;
   $('otherUser').onclick = () => { $('emailField').classList.remove('hidden'); $('otherUser').classList.add('hidden'); };
   $('loginForm').onsubmit = async e => {
     e.preventDefault();
     const err = $('loginErr'); err.textContent = '';
     const { error } = await sb.auth.signInWithPassword({ email: $('email').value.trim(), password: $('pw').value });
-    if (error) { err.textContent = 'Fel lösenord. Försök igen.'; return; }
+    if (error) { err.textContent = 'Fel e-post eller lösenord. Försök igen.'; return; }
+    savedEmail = $('email').value.trim(); try { localStorage.setItem('lyssnaEmail', savedEmail); } catch (e) {}
     route();
   };
 }
