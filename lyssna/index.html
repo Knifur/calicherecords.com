@@ -5,10 +5,9 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <title>Lyssna — Caliche Records</title>
 <meta name="robots" content="noindex, nofollow">
-<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'unsafe-inline' https://cdn.jsdelivr.net; style-src 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; connect-src https://tvsgupgoqltuktffkfrx.supabase.co wss://tvsgupgoqltuktffkfrx.supabase.co; media-src https://tvsgupgoqltuktffkfrx.supabase.co blob:; img-src data: https://tvsgupgoqltuktffkfrx.supabase.co; base-uri 'none'; form-action 'none'; object-src 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; font-src 'self'; connect-src https://tvsgupgoqltuktffkfrx.supabase.co wss://tvsgupgoqltuktffkfrx.supabase.co; media-src https://tvsgupgoqltuktffkfrx.supabase.co blob:; img-src data: https://tvsgupgoqltuktffkfrx.supabase.co; base-uri 'none'; form-action 'none'; object-src 'none'">
 <meta name="referrer" content="no-referrer">
-<link rel="preconnect" href="https://fonts.googleapis.com">
-<link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,700;0,900;1,400&family=EB+Garamond:ital,wght@0,400;0,500;1,400&family=Cormorant+Garamond:ital,wght@0,300;0,400;1,400&family=Vazirmatn:wght@400;500&display=swap" rel="stylesheet">
+<link href="/fonts/lyssna.css" rel="stylesheet">
 <style>
   *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
   :root { --dark:#0e0b08;--darker:#080604;--brown:#8B4513;--gold:#C8A882;--gold-dim:#8a6a4a;--dust:#F5F0EB;--gray:#6a6050;--mid:#3a2e22;--red:#e0702a; }
@@ -144,7 +143,7 @@
 
 <footer>Caliche Records International · Endast för inbjudna</footer>
 
-<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.min.js" integrity="sha384-GFr3yTh5lJznCbZfpTtXnwboFsxqtTQoeTZCRHhE0579KrRmlCzen5AA8ohaB5ug" crossorigin="anonymous"></script>
+<script src="/lyssna/supabase-2.45.4.min.js" integrity="sha384-GFr3yTh5lJznCbZfpTtXnwboFsxqtTQoeTZCRHhE0579KrRmlCzen5AA8ohaB5ug" crossorigin="anonymous"></script>
 <script>
 const SUPABASE_URL = 'https://tvsgupgoqltuktffkfrx.supabase.co';
 const SUPABASE_KEY = 'sb_publishable_9iZmfnAENWhuznPDRzKOig_igxZNIj6';
